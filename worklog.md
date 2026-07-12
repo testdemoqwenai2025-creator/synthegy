@@ -239,3 +239,55 @@ Stage Summary:
 - The molecule microservice now spans 2 public databases (PubChem + ChEMBL) with 14 total endpoints, all cached in SQLite with TTLs.
 - Files added/updated: `mini-services/synthegy-molecule/src/{pubchem.ts (extended), chembl.ts (new), routes/molecule.ts (extended)}`, `src/lib/synthegy/molecule-api.ts (extended)`, `src/components/synthegy/advanced-search.tsx (new)`, `src/components/synthegy/{demo,architecture}.tsx (updated)`.
 - Verification: lint clean; both mini-services stable (multi-minute uptimes); agent-browser confirmed all 3 new capabilities work end-to-end through the Caddy gateway, including the cross-feature flow from search-result → evaluator enrichment.
+
+---
+Task ID: 5
+Agent: main (Super Z)
+Task: Add named collections, SDF/CSV export, target-based search via ChEMBL target API, and push the entire project to GitHub.
+
+Work Log:
+- Verified all 3 data sources before building:
+  * ChEMBL target search: `pref_name__icontains=cyclooxygenase` returns 8 targets across species
+  * ChEMBL target activities: `target_chembl_id=CHEMBL230` returns 6,116 IC50 activities
+  * PubChem SDF endpoint: `compound/cid/2244/SDF?record_type=2d` returns full connection table
+- Added collections tables to backend SQLite (`src/db.ts`): `collections` (id, label, description, chemist_id, timestamps) + `collection_items` (id, collection_id, cid, name, formula, MW, SMILES, InChIKey, xLogP, tpsa, source, added_at) with UNIQUE(collection_id, cid, canonical_smiles) to allow ChEMBL compounds (cid=0).
+- Created `src/routes/collections.ts` with 9 endpoints: GET /, POST /, GET /:id, PATCH /:id, DELETE /:id, POST /:id/items, POST /:id/items/bulk, DELETE /:id/items/:cid. Bulk-add uses ON CONFLICT DO NOTHING for dedup.
+- Extended molecule service with 4 new functions:
+  * `getSDFByCID(cid)` + `getSDFByCIDs(cids[])` in pubchem.ts — fetches 2D SDF records from PubChem, cached 30 days
+  * `searchTargets(query, limit)` in chembl.ts — ChEMBL target search via pref_name__icontains
+  * `getActiveCompoundsForTarget(chemblId, {type, limit})` in chembl.ts — returns distinct compounds ranked by pChemblValue, deduped by molecule_chembl_id
+- Added 4 new routes to molecule service:
+  * GET /api/molecule/targets/search?q=&limit=
+  * GET /api/molecule/targets/:chemblId/compounds?type=&limit=
+  * GET /api/molecule/export/sdf?cids=2244,5161 (returns chemical/x-mdl-sdfile)
+  * GET /api/molecule/export/csv?cids=2244,5161 (returns text/csv with 14 columns, RFC-4180 escaping)
+- Extended frontend API clients: added Collection/CollectionItem/CollectionItemInput types + 9 collection methods to api.ts; added ChEMBLTarget/ActiveCompound/TargetActivitiesResult types + searchTargets/activeCompoundsForTarget methods + exportUrl() helper to molecule-api.ts.
+- Built `CollectionsPanel` component (380 lines): lists collections with item counts, create/delete, expand to see items with structure thumbnails, per-collection SDF/CSV download buttons, "Save current results" bar with collection dropdown + bulk-add.
+- Added 4th "Target search" tab to AdvancedSearch component (250 lines): target name input + 8 presets (cyclooxygenase, kinase, dopamine receptor, etc.), target results list with CHEMBL IDs + organism, click target → loads most potent compounds with pChEMBL values, activity-type filter (IC50/Ki/Kd/EC50/AC50/Potency).
+- Wired onResultsChange callback through AdvancedSearch → SubstructureTab/PropertyFilterTab/TargetSearchTab → Demo → CollectionsPanel, so search results flow into the "Save all" bar automatically.
+- Fixed Zod validator: changed `cid: z.number().int().positive()` to `z.number().int().min(0)` so ChEMBL compounds (which have no PubChem CID) can be saved with cid=0.
+- Increased Bun idleTimeout from 10s to 60s on the molecule service — ChEMBL target-activities queries can take 20-30s.
+- Lint clean (0 errors, 0 warnings).
+- Agent-browser end-to-end verification:
+  * Target search: "cyclooxygenase" → 8 targets → clicked human Cyclooxygenase (CHEMBL2094253) → 97 activities, top compounds: PRIFELONE (IC50=2 nM, pChembl=8.70), INDOMETHACIN (IC50=5.7 nM, pChembl=8.24)
+  * Collections: created "COX-2 hit list from ChEMBL" → selected it in dropdown → clicked "Save all" → "Added 15, skipped 0 duplicates" → collection expanded showing all 15 compounds with structure images + SDF/CSV download links
+  * SDF export via curl: returns real SDF with atoms/bonds/coordinates
+  * CSV export via curl: 14 columns with proper InChI escaping
+- GitHub push:
+  * Created `.gitignore` excluding node_modules, .next, DB files, skills/, .zscripts/, logs
+  * Wrote comprehensive README.md (architecture diagram, API reference, tech stack, project structure)
+  * Committed all changes (1,803 insertions across 22 files)
+  * Downloaded gh CLI binary (v2.65.0) to ~/.local/bin since no sudo access
+  * Token lacked `read:org` scope for gh CLI, so used GitHub API directly via curl
+  * Created public repo `testdemoqwenai2025-creator/synthegy` via POST /user/repos
+  * Added remote with token-embedded URL, pushed main branch, then cleaned remote URL to remove token
+  * Verified: 5 commits on GitHub, all mini-services code present, collections.ts (9.3KB) + collections-panel.tsx (15.7KB) + advanced-search.tsx (43KB) all pushed
+
+Stage Summary:
+- Three new capabilities shipped and verified end-to-end:
+  1. Named compound collections with full CRUD + bulk-add from any search
+  2. SDF/CSV export with per-collection download buttons
+  3. Target-based search via ChEMBL target API (find compounds active against a named protein target)
+- Entire project pushed to GitHub: https://github.com/testdemoqwenai2025-creator/synthegy
+- 150 tracked files, 5 commits, comprehensive README with architecture diagram + API reference
+- All 3 services stable (backend 705s+ uptime, molecule 537s+, Next.js 200)
