@@ -177,3 +177,65 @@ Stage Summary:
 - The "super power" demonstrated: the LLM Strategic Evaluator now reasons about real molecular data. Tested with Atovaquone (XLogP 5.2, naphthoquinone) and Caffeine (purine) — the LLM gave molecule-specific feedback referencing actual functional groups and recommending appropriate named reactions (Traube synthesis for purines).
 - Files added: `mini-services/synthegy-molecule/{index.ts,package.json,tsconfig.json,spawn.ts,start.sh}`, `src/{cache.ts,pubchem.ts,routes/{health,molecule}.ts,middleware/{auth,logger,errorHandler}.ts}`, `src/lib/synthegy/molecule-api.ts`, `src/components/synthegy/molecule-explorer.tsx`, plus `spawn.ts` for the backend. Updated: `mini-services/synthegy-backend/src/{lib/llm.ts,routes/evaluate.ts}`, `src/lib/synthegy/api.ts`, `src/components/synthegy/{live-evaluator,demo,architecture}.tsx`.
 - Verification: lint clean; both mini-services stable (multi-minute uptimes via detached spawn); agent-browser confirmed end-to-end PubChem lookup → enrich → LLM call → persist → history refresh.
+
+---
+Task ID: 4
+Agent: main (Super Z)
+Task: Add three new molecular intelligence capabilities: substructure search, property-based filtering, and ChEMBL bioactivity integration.
+
+Work Log:
+- Verified all three data sources are reachable from the sandbox:
+  * PubChem `fastsubstructure` endpoint returns CIDs containing a SMILES scaffold
+  * NCBI E-utilities supports numerical range queries on indexed fields (XLGP, TPSA, MW, etc.) using `min:max[FIELD]` colon syntax — discovered after testing that human-readable names don't work, only the field codes from `einfo.fcgi`
+  * ChEMBL REST API at `https://www.ebi.ac.uk/chembl/api/data/` supports molecule lookup by InChIKey, mechanism of action, and bioactivity measurements (IC50, Ki, Kd, EC50)
+- Extended the molecule microservice with 3 new functions in `src/pubchem.ts`:
+  * `substructureSearch(smiles, maxRecords)` — calls PubChem fastsubstructure
+  * `propertyFilter(filters, limit)` — builds E-utilities term from PropertyFilter[] array, returns ranked CIDs
+  * Exported `PropertyFilter` type with 9 supported fields (XLGP, TPSA, MW, HAC, RBC, HBDC, HBAC, CPLX, TFC)
+- Created new ChEMBL client at `src/chembl.ts`:
+  * `lookupMoleculeByInChIKey(inchikey)` — fetches ChEMBL ID, pref_name, max_phase, first_approval year, ATC codes, ALogP, PSA, Ro5 violations, withdrawal/black-box flags
+  * `lookupMechanisms(chemblId)` — returns action_type (INHIBITOR/ANTAGONIST/etc.) + mechanism_of_action text
+  * `lookupActivities(chemblId, {type, limit})` — returns bioactivity measurements sorted by pChemblValue descending (most potent first), with target name, organism, journal, year
+  * `getBioactivity(inchikey, type?)` — top-level function that combines all three lookups
+- Added 3 new routes to `src/routes/molecule.ts`:
+  * `GET /api/molecule/substructure?smiles=&max=` — find compounds containing scaffold, returns compounds with CID/name/formula/MW/SMILES/XLogP/TPSA
+  * `GET /api/molecule/filter?fields=XLGP:2:4,TPSA:60:100&limit=15` — property-based filter, returns totalMatches + compounds
+  * `GET /api/molecule/bioactivity?inchikey=&type=IC50` — full ChEMBL bioactivity record
+- Updated `index.ts` route listing to include the 3 new endpoints and update data source description to "PubChem PUG REST + NCBI E-utilities + ChEMBL"
+- Smoke-tested all 3 endpoints via curl with real queries:
+  * Substructure (aspirin scaffold): found 5 compounds including aspirin, salsalate, trifluoromethyl-aspirin derivative
+  * Property filter (XLogP 2-4 AND TPSA 60-100): 19,028,523 matches in PubChem, returned 5 with verified properties
+  * ChEMBL Aspirin: CHEMBL25, first approval 1950, mechanism "Cyclooxygenase inhibitor", 137 IC50 activities sorted by potency (top hit pChEMBL 8.49)
+  * ChEMBL Caffeine: CHEMBL113, first approval 1948, mechanism "Adenosine receptor antagonist", 197 activities, top hit AC50=0.6 nM against Cannabinoid receptor 1
+- Extended frontend API client at `src/lib/synthegy/molecule-api.ts`:
+  * Added types: `CompoundSearchRow`, `SubstructureResult`, `PropertyField`, `PropertyFilterSpec`, `PropertyFilterResult`, `ChEMBLMolecule`, `ChEMBLMechanism`, `ChEMBLActivity`, `ChEMBLBioactivity`
+  * Added methods: `substructure(smiles, max)`, `propertyFilter(filters, limit)`, `bioactivity(inchikey, type?)`
+- Built new `AdvancedSearch` component (`src/components/synthegy/advanced-search.tsx`) with 3 tabs:
+  * **Substructure tab**: SMILES input + 7 scaffold presets (benzene, pyridine, indole, imidazole, piperazine, naphthalene, aspirin scaffold), max-records control, results with thumbnail + expandable details + "Use" button
+  * **Property filter tab**: 4 presets (Drug-like Lipinski+, Lead-like, Fragment-like, CNS-penetrant), dynamic filter rows with field selector (9 properties), min/max inputs, add/remove filters, "Filter PubChem" button, total-matches banner, results list
+  * **ChEMBL bioactivity tab**: InChIKey input + 4 popular-molecule presets (Aspirin, Caffeine, Ibuprofen, Paracetamol), activity-type filter (IC50/Ki/Kd/EC50/AC50/Potency/Any), molecule header card (ChEMBL ID, name, max phase, first approval, ATC codes), black-box/withdrawn warning badges, mechanism cards, scrollable activities list with pChEMBL values
+  * Shared `CompoundRow` component with thumbnail + expandable details + "Use in evaluator" button that calls `onUseInEvaluator` callback
+- Wired `AdvancedSearch` into the "Try it live" tab in `demo.tsx`, between MoleculeExplorer and LiveEvaluator. The `onUseInEvaluator` callback flows molecule data from search results directly into the evaluator's enrichedContext.
+- Updated Architecture section:
+  * Tier 04 "Molecule" now shows 2 data source lines: "PubChem PUG REST — 124M compounds · substructure + property filter" and "ChEMBL REST API — 2.4M bioactive · mechanisms + IC50/Ki"
+  * Updated intro text to mention both PubChem and ChEMBL
+- Updated demo section description text to mention substructure search, property filtering, and ChEMBL bioactivity.
+- Lint clean (0 errors, 0 warnings).
+- Agent-browser end-to-end verification through Caddy gateway:
+  * Page renders with Advanced Search component below MoleculeExplorer, all 3 tabs visible
+  * **Substructure test**: searched benzene (c1ccccc1) → found 12 compounds including 1,1-dioxo-1,2-benzothiazol-3-one (CID 5143), 5-chloro-2-(2,4-dichlorophenoxy)phenol (CID 5564), each with structure thumbnail, formula, MW, XLogP, TPSA
+  * **Property filter test**: ran default Drug-like preset (XLogP 2-4, TPSA 60-100) → banner shows "19,028,523 compounds in PubChem match all filters", returned 12 top results with verified property values, including [3-(3,4,5-trimethoxyphenyl)thiophen-2-yl]methanol (XLogP 2.3, TPSA 76.2)
+  * **ChEMBL test**: looked up Aspirin by InChIKey → CHEMBL25, first approval 1950, mechanism "Cyclooxygenase inhibitor", 158 activities sorted by potency (top: pChEMBL 9.30), including IC50=300 nM against Prostaglandin G/H synthase 1 (COX-1) — the known target
+  * **Cross-feature test**: expanded a substructure search result (CID 5143), clicked "Use" → the "PubChem-enriched · CID 5143" badge appeared in the LiveEvaluator, ready to enrich the next LLM call
+- Cache stats after testing: 83 entries (28 images, 37 properties, 8 search results, 5 synonyms, 5 descriptions) — the platform is heavily cached.
+- Captured screenshots: `download/synthegy-v4-advanced-search.png`, `download/synthegy-v4-chembl-bioactivity.png`.
+
+Stage Summary:
+- The Synthegy platform now has three new molecular intelligence capabilities exposed through a single `AdvancedSearch` component:
+  1. **Substructure search** — find all PubChem compounds containing a SMILES scaffold (e.g. "show me every compound with a benzene ring")
+  2. **Property-based filtering** — filter 124M PubChem compounds by computed property ranges (XLogP, TPSA, MW, H-bond donors/acceptors, rotatable bonds, complexity, etc.) with 4 quick presets (Drug-like, Lead-like, Fragment-like, CNS-penetrant)
+  3. **ChEMBL bioactivity** — look up drug-development metadata (max phase, first approval year, ATC codes), mechanism of action, and measured bioactivity (IC50/Ki/Kd/EC50 sorted by potency) for any compound via its InChIKey
+- All three capabilities integrate with the existing Strategic Evaluator: any search result can be sent to the evaluator with a single click via the "Use in evaluator" button, which calls the same `onUseInEvaluator` callback used by the MoleculeExplorer.
+- The molecule microservice now spans 2 public databases (PubChem + ChEMBL) with 14 total endpoints, all cached in SQLite with TTLs.
+- Files added/updated: `mini-services/synthegy-molecule/src/{pubchem.ts (extended), chembl.ts (new), routes/molecule.ts (extended)}`, `src/lib/synthegy/molecule-api.ts (extended)`, `src/components/synthegy/advanced-search.tsx (new)`, `src/components/synthegy/{demo,architecture}.tsx (updated)`.
+- Verification: lint clean; both mini-services stable (multi-minute uptimes); agent-browser confirmed all 3 new capabilities work end-to-end through the Caddy gateway, including the cross-feature flow from search-result → evaluator enrichment.

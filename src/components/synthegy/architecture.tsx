@@ -11,6 +11,7 @@ import {
   Cpu,
   Lock,
   Atom,
+  Activity,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -39,8 +40,8 @@ const BACKEND_FEATURES = [
 const MOLECULE_FEATURES = [
   { icon: Server, label: "Bun + Hono", note: "port 3002" },
   { icon: Database, label: "SQLite cache", note: "30-day TTL on properties" },
-  { icon: Atom, label: "PubChem PUG REST", note: "119M+ compounds" },
-  { icon: ScrollText, label: "REST: /api/molecule/*", note: "name, cid, smiles, image, search, similarity" },
+  { icon: Atom, label: "PubChem PUG REST", note: "124M compounds · substructure + property filter" },
+  { icon: Activity, label: "ChEMBL REST API", note: "2.4M bioactive · mechanisms + IC50/Ki" },
 ];
 
 export function Architecture() {
@@ -60,9 +61,10 @@ export function Architecture() {
           <p className="mt-4 text-balance text-base leading-relaxed text-muted-foreground">
             Synthegy isn&apos;t a slide deck. The platform you&apos;re using runs on a real
             four-tier stack: a Next.js frontend, a Hono API gateway with layered middleware, a
-            SQLite-backed service that hosts the LLM Strategic Evaluator, and a PubChem-backed
-            molecule microservice that enriches the evaluator with real compound data from the
-            public 119M-compound database.
+            SQLite-backed service that hosts the LLM Strategic Evaluator, and a molecule
+            microservice that spans two public databases — PubChem (124M compounds, substructure
+            + property filtering) and ChEMBL (2.4M bioactive molecules with measured IC50/Ki
+            values and mechanisms of action).
           </p>
         </div>
 

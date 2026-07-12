@@ -9,10 +9,14 @@ import {
   getDescriptions,
   searchCompounds,
   similaritySearch,
+  substructureSearch,
+  propertyFilter,
   getStructureImage,
   type CompoundProperties,
   type CompoundDescription,
+  type PropertyFilter,
 } from "../pubchem.ts";
+import { getBioactivity } from "../chembl.ts";
 import { cacheStats, cacheClearExpired } from "../cache.ts";
 
 export const molecule = new Hono();
@@ -225,6 +229,123 @@ molecule.get("/cid/:cid/synonyms", async (c) => {
   }
   const synonyms = await getSynonyms(cidNum).catch(() => []);
   return c.json({ cid: cidNum, count: synonyms.length, synonyms });
+});
+
+// GET /api/molecule/substructure?smiles=&max=
+// Find all compounds containing the given SMILES scaffold.
+molecule.get("/substructure", async (c) => {
+  const smiles = c.req.query("smiles") ?? "";
+  const maxRecords = Math.min(Number(c.req.query("max") ?? 15), 50);
+  if (!smiles.trim()) {
+    return c.json(
+      { error: "validation_error", message: "smiles query parameter is required" },
+      400
+    );
+  }
+  const cids = await substructureSearch(smiles, maxRecords).catch((err) => {
+    throw new Error(`Substructure search failed: ${err.message}`);
+  });
+  const propLookups = await Promise.all(
+    cids.map((cid) => getPropertiesByCID(cid).catch(() => null))
+  );
+  const compounds = propLookups
+    .filter((p): p is CompoundProperties => p !== null)
+    .map((p) => ({
+      cid: p.cid,
+      name: p.iupacName ?? p.molecularFormula,
+      molecularFormula: p.molecularFormula,
+      molecularWeight: p.molecularWeight,
+      canonicalSMILES: p.canonicalSMILES,
+      xLogP: p.xLogP,
+      tpsa: p.tpsa,
+    }));
+  return c.json({
+    query: { smiles, maxRecords },
+    count: compounds.length,
+    compounds,
+  });
+});
+
+// GET /api/molecule/filter?fields=XLGP:2:4,TPSA:60:100&MW:200:400&limit=15
+// OR POST with JSON body for cleaner API.
+// Filter compounds by computed property ranges (XLogP, TPSA, MW, etc.).
+molecule.get("/filter", async (c) => {
+  const fieldsParam = c.req.query("fields") ?? "";
+  const limit = Math.min(Number(c.req.query("limit") ?? 15), 50);
+  if (!fieldsParam) {
+    return c.json(
+      {
+        error: "validation_error",
+        message:
+          'fields query parameter is required. Format: "XLGP:2:4,TPSA:60:100" (FIELD:min:max, comma-separated)',
+        availableFields: ["XLGP", "TPSA", "MW", "HAC", "RBC", "HBDC", "HBAC", "CPLX", "TFC"],
+      },
+      400
+    );
+  }
+  const filters: PropertyFilter[] = fieldsParam
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => {
+      const parts = s.split(":");
+      if (parts.length !== 3) return null;
+      const field = parts[0].toUpperCase() as PropertyFilter["field"];
+      const min = Number(parts[1]);
+      const max = Number(parts[2]);
+      if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+      return { field, min, max };
+    })
+    .filter((f): f is PropertyFilter => f !== null);
+
+  if (!filters.length) {
+    return c.json(
+      { error: "validation_error", message: "No valid filters parsed from fields parameter." },
+      400
+    );
+  }
+
+  const result = await propertyFilter(filters, limit).catch((err) => {
+    throw new Error(`Property filter failed: ${err.message}`);
+  });
+
+  const propLookups = await Promise.all(
+    result.cids.map((cid) => getPropertiesByCID(cid).catch(() => null))
+  );
+  const compounds = propLookups
+    .filter((p): p is CompoundProperties => p !== null)
+    .map((p) => ({
+      cid: p.cid,
+      name: p.iupacName ?? p.molecularFormula,
+      molecularFormula: p.molecularFormula,
+      molecularWeight: p.molecularWeight,
+      canonicalSMILES: p.canonicalSMILES,
+      xLogP: p.xLogP,
+      tpsa: p.tpsa,
+    }));
+  return c.json({
+    query: filters,
+    totalMatches: result.total,
+    count: compounds.length,
+    compounds,
+  });
+});
+
+// GET /api/molecule/bioactivity?inchikey=BSYNRYMUTXBXSQ-UHFFFAOYSA-N&type=IC50
+// Look up ChEMBL drug-development + bioactivity data for a compound.
+molecule.get("/bioactivity", async (c) => {
+  const inchikey = c.req.query("inchikey") ?? "";
+  const type = c.req.query("type") || undefined; // IC50, Ki, Kd, EC50, etc.
+  if (!inchikey.trim()) {
+    return c.json(
+      { error: "validation_error", message: "inchikey query parameter is required" },
+      400
+    );
+  }
+  const result = await getBioactivity(inchikey, type).catch((err) => {
+    throw new Error(`ChEMBL lookup failed: ${err.message}`);
+  });
+  return c.json({ bioactivity: result });
 });
 
 // GET /api/molecule/stats — cache statistics (for ops dashboard)

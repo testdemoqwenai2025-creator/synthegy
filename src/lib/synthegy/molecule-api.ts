@@ -65,6 +65,86 @@ export interface SimilarityResult {
   }>;
 }
 
+// Result row shared by substructure + property-filter endpoints.
+export interface CompoundSearchRow {
+  cid: number;
+  name: string;
+  molecularFormula: string;
+  molecularWeight: string;
+  canonicalSMILES: string;
+  xLogP?: number;
+  tpsa?: number;
+}
+
+export interface SubstructureResult {
+  query: { smiles: string; maxRecords: number };
+  count: number;
+  compounds: CompoundSearchRow[];
+}
+
+export type PropertyField =
+  | "XLGP" | "TPSA" | "MW" | "HAC" | "RBC"
+  | "HBDC" | "HBAC" | "CPLX" | "TFC";
+
+export interface PropertyFilterSpec {
+  field: PropertyField;
+  min: number;
+  max: number;
+}
+
+export interface PropertyFilterResult {
+  query: PropertyFilterSpec[];
+  totalMatches: number;
+  count: number;
+  compounds: CompoundSearchRow[];
+}
+
+// ChEMBL types
+export interface ChEMBLMolecule {
+  chemblId: string;
+  prefName: string | null;
+  maxPhase: number | null;
+  firstApproval: number | null;
+  atcCodes: string[];
+  molecularWeight: number | null;
+  alogp: number | null;
+  psa: number | null;
+  ruleOfFive: number | null;
+  withdrawalFlag: boolean;
+  blackBoxWarning: boolean;
+  chemblUrl: string;
+}
+
+export interface ChEMBLMechanism {
+  chemblId: string;
+  actionType: string | null;
+  mechanismOfAction: string;
+  targetType: string | null;
+  directInteraction: boolean;
+}
+
+export interface ChEMBLActivity {
+  activityId: number;
+  standardType: string;
+  standardValue: number | null;
+  standardUnits: string | null;
+  relation: string;
+  targetName: string | null;
+  targetOrganism: string | null;
+  assayDescription: string | null;
+  pChemblValue: number | null;
+  journal: string | null;
+  year: number | null;
+}
+
+export interface ChEMBLBioactivity {
+  molecule: ChEMBLMolecule | null;
+  mechanisms: ChEMBLMechanism[];
+  activities: ChEMBLActivity[];
+  totalActivities: number;
+  fetchedAt: number;
+}
+
 // --- Core fetch -----------------------------------------------------------
 
 export class MoleculeApiError extends Error {
@@ -151,6 +231,25 @@ export const moleculeApi = {
   similarity: (smiles: string, threshold: number = 90, max: number = 8) =>
     molFetch<SimilarityResult>(`/api/molecule/similarity`, {
       query: { smiles, threshold: String(threshold), max: String(max) },
+    }),
+
+  substructure: (smiles: string, max: number = 12) =>
+    molFetch<SubstructureResult>(`/api/molecule/substructure`, {
+      query: { smiles, max: String(max) },
+    }),
+
+  propertyFilter: (filters: PropertyFilterSpec[], limit: number = 12) => {
+    const fields = filters
+      .map((f) => `${f.field}:${f.min}:${f.max}`)
+      .join(",");
+    return molFetch<PropertyFilterResult>(`/api/molecule/filter`, {
+      query: { fields, limit: String(limit) },
+    });
+  },
+
+  bioactivity: (inchikey: string, type?: string) =>
+    molFetch<{ bioactivity: ChEMBLBioactivity }>(`/api/molecule/bioactivity`, {
+      query: type ? { inchikey, type } : { inchikey },
     }),
 
   synonyms: (cid: number) =>

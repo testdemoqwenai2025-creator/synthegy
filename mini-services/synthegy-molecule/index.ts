@@ -48,7 +48,7 @@ app.notFound((c) =>
 );
 
 console.log(`[synthegy-molecule] listening on http://localhost:${PORT}`);
-console.log(`[synthegy-molecule] data source: PubChem PUG REST + NCBI E-utilities`);
+console.log(`[synthegy-molecule] data sources: PubChem PUG REST + NCBI E-utilities + ChEMBL`);
 console.log(`[synthegy-molecule] demo api key: synthegy-demo-key`);
 console.log(`[synthegy-molecule] routes:`);
 console.log(`  GET  /health`);
@@ -57,6 +57,9 @@ console.log(`  GET  /api/molecule/cid/:cid                (full record by CID)`)
 console.log(`  GET  /api/molecule/smiles/:smiles          (full record by SMILES)`);
 console.log(`  GET  /api/molecule/search?q=&limit=        (ranked search)`);
 console.log(`  GET  /api/molecule/similarity?smiles=&threshold=&max=`);
+console.log(`  GET  /api/molecule/substructure?smiles=&max=    (substructure search)`);
+console.log(`  GET  /api/molecule/filter?fields=XLGP:2:4,TPSA:60:100&limit=15`);
+console.log(`  GET  /api/molecule/bioactivity?inchikey=&type=IC50  (ChEMBL)`);
 console.log(`  GET  /api/molecule/name/:name/image?size=  (PNG proxy)`);
 console.log(`  GET  /api/molecule/cid/:cid/image?size=    (PNG proxy)`);
 console.log(`  GET  /api/molecule/cid/:cid/synonyms`);

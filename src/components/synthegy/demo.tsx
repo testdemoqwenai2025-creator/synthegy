@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { LiveEvaluator } from "./live-evaluator";
 import { SessionHistory } from "./session-history";
 import { MoleculeExplorer } from "./molecule-explorer";
+import { AdvancedSearch } from "./advanced-search";
 import type { MoleculeRecord } from "@/lib/synthegy/molecule-api";
 
 export function Demo() {
@@ -50,10 +51,10 @@ export function Demo() {
             </h2>
             <p className="mt-4 text-balance text-base leading-relaxed text-muted-foreground">
               Each scenario below replays a real agent pipeline: orchestration, translation, and LLM
-              reasoning. The fourth tab is a live evaluator — search any molecule on PubChem,
-              enrich the prompt with its real molecular data, then run the Strategic Evaluator
-              against your own natural-language instruction. Every run is persisted to your
-              session via the Synthegy backend.
+              reasoning. The fourth tab is a live evaluator — look up any molecule on PubChem,
+              run a substructure or property-filter search across 124M compounds, inspect
+              ChEMBL bioactivity data, then enrich the Strategic Evaluator prompt with real
+              molecular data. Every run is persisted to your session via the Synthegy backend.
             </p>
           </div>
         </div>
@@ -90,6 +91,7 @@ export function Demo() {
           <TabsContent value="live" className="mt-6">
             <div className="space-y-6">
               <MoleculeExplorer onUseInEvaluator={(m) => setEnrichedMolecule({ name: m.properties.iupacName ?? "molecule", record: m })} />
+              <AdvancedSearch onUseInEvaluator={(m) => setEnrichedMolecule({ name: m.properties.iupacName ?? "molecule", record: m })} />
               <LiveEvaluator
                 onRunPersisted={() => setHistoryRefreshKey((k) => k + 1)}
                 enrichedMolecule={enrichedMolecule}

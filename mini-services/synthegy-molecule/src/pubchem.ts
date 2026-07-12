@@ -314,6 +314,102 @@ export async function similaritySearch(
   return data?.IdentifierList?.CID ?? [];
 }
 
+// --- Substructure search --------------------------------------------------
+
+// PubChem PUG REST fastsubstructure — find all compounds containing the
+// given SMILES scaffold. Returns CIDs in descending depositor-count order
+// (most-deposited first, which is a useful proxy for "most studied").
+export async function substructureSearch(
+  smiles: string,
+  maxRecords: number = 15
+): Promise<number[]> {
+  const clean = smiles.trim();
+  if (!clean) return [];
+  const key = `sub:${maxRecords}:${clean}`;
+  const url = `${PUBCHEM_BASE}/compound/fastsubstructure/smiles/${encodeURIComponent(
+    clean
+  )}/cids/JSON?MaxRecords=${maxRecords}`;
+  const data = await pubchemFetch<SimilarityResponse>(url, key, {
+    ttlMs: TTL.SEARCH,
+    kind: "search",
+  });
+  return data?.IdentifierList?.CID ?? [];
+}
+
+// --- Property-based filtering ---------------------------------------------
+
+// Uses NCBI E-utilities with numerical field ranges to filter PubChem
+// compounds by computed properties (XLogP, TPSA, MW, etc.).
+//
+// Field codes (verified against einfo.fcgi):
+//   XLGP  = XLogP
+//   TPSA  = TPSA
+//   MW    = MolecularWeight
+//   HAC   = HeavyAtomCount
+//   RBC   = RotatableBondCount
+//   HBDC  = HydrogenBondDonorCount
+//   HBAC  = HydrogenBondAcceptorCount
+//   CPLX  = Complexity
+//   TFC   = TotalFormalCharge
+//
+// Range syntax:  min:max[FIELD]   e.g. 2:4[XLGP]
+
+export interface PropertyFilter {
+  field: "XLGP" | "TPSA" | "MW" | "HAC" | "RBC" | "HBDC" | "HBAC" | "CPLX" | "TFC";
+  min: number;
+  max: number;
+}
+
+export interface PropertyFilterResult {
+  query: PropertyFilter[];
+  total: number;
+  cids: number[];
+  source: "eutils";
+}
+
+export async function propertyFilter(
+  filters: PropertyFilter[],
+  limit: number = 15
+): Promise<PropertyFilterResult> {
+  if (!filters.length) {
+    return { query: [], total: 0, cids: [], source: "eutils" };
+  }
+  // Build the E-utilities term. Each filter becomes `min:max[FIELD]`.
+  // Multiple filters are ANDed.
+  const term = filters
+    .map((f) => `${f.min}:${f.max}[${f.field}]`)
+    .join("+AND+");
+  const cacheKey = `propfilter:${term}:${limit}`;
+  const cached = cacheGet<PropertyFilterResult>(cacheKey);
+  if (cached) return cached;
+
+  const url = `${EUTILS_BASE}/esearch.fcgi?db=pccompound&term=${term}&retmode=json&retmax=${limit}&sort=relevance`;
+  await respectRateLimit();
+  let res: Response;
+  try {
+    res = await fetch(url, { headers: { Accept: "application/json" } });
+  } catch (err) {
+    throw new Error(
+      `E-utilities property query failed: ${err instanceof Error ? err.message : "network error"}`
+    );
+  }
+  if (!res.ok) {
+    throw new Error(`E-utilities returned ${res.status}`);
+  }
+  const data = (await res.json()) as ESearchResponse;
+  const cids = (data.esearchresult?.idlist ?? [])
+    .map((s) => Number(s))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  const result: PropertyFilterResult = {
+    query: filters,
+    total: Number(data.esearchresult?.count ?? 0),
+    cids,
+    source: "eutils",
+  };
+  cacheSet(cacheKey, result, { ttlMs: TTL.SEARCH, kind: "search" });
+  return result;
+}
+
 // Image proxy — fetches the 2D structure PNG from PubChem and caches it.
 export async function getStructureImage(
   identifier: string,
