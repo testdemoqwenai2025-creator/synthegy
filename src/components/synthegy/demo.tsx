@@ -23,8 +23,13 @@ import {
 } from "@/lib/synthegy/data";
 import { cn } from "@/lib/utils";
 import { LiveEvaluator } from "./live-evaluator";
+import { SessionHistory } from "./session-history";
 
 export function Demo() {
+  // refreshKey bumps every time a run is persisted, so the SessionHistory
+  // panel re-fetches from the backend.
+  const [historyRefreshKey, setHistoryRefreshKey] = React.useState(0);
+
   return (
     <section id="demo" className="relative scroll-mt-24 border-y border-border/40 bg-muted/15 py-20">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -40,7 +45,8 @@ export function Demo() {
             <p className="mt-4 text-balance text-base leading-relaxed text-muted-foreground">
               Each scenario below replays a real agent pipeline: orchestration, translation, and LLM
               reasoning. The fourth tab is a live evaluator — type your own natural-language
-              instruction and the Strategic Evaluator will score a candidate route against it.
+              instruction and the Strategic Evaluator will score a candidate route against it. Every
+              run is persisted to your session via the Synthegy backend.
             </p>
           </div>
         </div>
@@ -75,7 +81,10 @@ export function Demo() {
           ))}
 
           <TabsContent value="live" className="mt-6">
-            <LiveEvaluator />
+            <div className="space-y-6">
+              <LiveEvaluator onRunPersisted={() => setHistoryRefreshKey((k) => k + 1)} />
+              <SessionHistory refreshKey={historyRefreshKey} />
+            </div>
           </TabsContent>
         </Tabs>
       </div>

@@ -10,20 +10,16 @@ import {
   RotateCcw,
   X,
   Lightbulb,
+  Database,
+  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-
-interface EvaluatorResult {
-  score: number;
-  verdict: "accept" | "revise" | "reject" | string;
-  strategyAlignment: string;
-  flags: { step: string; issue: string; suggestion: string }[];
-  oneLineSummary: string;
-}
+import { api, type EvaluateResponse } from "@/lib/synthegy/api";
+import { useSynthegySession } from "@/hooks/use-synthegy-session";
 
 const PRESET_INSTRUCTIONS = [
   "Avoid unnecessary protecting groups. Prefer convergent routes.",
@@ -32,13 +28,17 @@ const PRESET_INSTRUCTIONS = [
   "Prefer atom-economical steps. Avoid heavy metals.",
 ];
 
-export function LiveEvaluator() {
+// Callback fired when a run is persisted — used by the parent to refresh
+// the session-history panel.
+export function LiveEvaluator({ onRunPersisted }: { onRunPersisted?: () => void }) {
   const [instruction, setInstruction] = React.useState(PRESET_INSTRUCTIONS[0]);
   const [target, setTarget] = React.useState("Atovaquone (antimalarial)");
   const [smiles, setSmiles] = React.useState("O=C(O)C1=CC(O)=C(C2=CC=CC=C2Cl)C(O)=C1");
   const [loading, setLoading] = React.useState(false);
-  const [result, setResult] = React.useState<EvaluatorResult | null>(null);
+  const [response, setResponse] = React.useState<EvaluateResponse | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+
+  const { sessionId, label, ensureSession } = useSynthegySession();
 
   const run = async () => {
     if (!instruction.trim()) {
@@ -47,28 +47,29 @@ export function LiveEvaluator() {
     }
     setLoading(true);
     setError(null);
-    setResult(null);
+    setResponse(null);
     try {
-      const res = await fetch("/api/synthegy/evaluate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target, smiles, instruction }),
+      // Make sure we have a session to attach the run to.
+      const sess = await ensureSession();
+      const res = await api.evaluate({
+        target,
+        smiles,
+        instruction,
+        workflowId: "retrosynthesis",
+        sessionId: sess?.id,
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data?.error || "Evaluator failed to respond.");
-        return;
-      }
-      setResult(data.result as EvaluatorResult);
+      setResponse(res);
+      onRunPersisted?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Network error");
+      const msg = err instanceof Error ? err.message : "Network error";
+      setError(msg);
     } finally {
       setLoading(false);
     }
   };
 
   const reset = () => {
-    setResult(null);
+    setResponse(null);
     setError(null);
   };
 
@@ -88,6 +89,26 @@ export function LiveEvaluator() {
                 </div>
               </div>
               <Sparkles className="h-5 w-5 text-accent" />
+            </div>
+
+            {/* Session badge — proves the run is persisted server-side */}
+            <div className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/20 px-3 py-2">
+              <Database className="h-3.5 w-3.5 text-primary" />
+              <span className="font-mono text-[11px] text-muted-foreground">
+                {sessionId ? (
+                  <>
+                    session:{" "}
+                    <span className="text-foreground">
+                      {sessionId.slice(0, 18)}
+                    </span>
+                    {sessionId.length > 18 ? "..." : ""}
+                  </>
+                ) : (
+                  <span className="text-muted-foreground/70">
+                    no session yet — one will be created on first run
+                  </span>
+                )}
+              </span>
             </div>
 
             <div>
@@ -159,7 +180,7 @@ export function LiveEvaluator() {
                   </>
                 )}
               </Button>
-              {(result || error) && (
+              {(response || error) && (
                 <Button variant="outline" onClick={reset} disabled={loading}>
                   <X className="mr-1.5 h-4 w-4" />
                   Clear
@@ -168,8 +189,7 @@ export function LiveEvaluator() {
             </div>
 
             <p className="text-[11px] leading-relaxed text-muted-foreground">
-              The evaluator scores a fixed candidate route against your instruction. In production
-              this is wired to your own pathway tree from the Search Orchestrator agent.
+              Calls the Synthegy backend at <code className="font-mono text-foreground">POST /api/evaluate</code> — the run is persisted to your session and appears in the history panel below.
             </p>
           </CardContent>
         </Card>
@@ -183,13 +203,15 @@ export function LiveEvaluator() {
               <span
                 className={cn(
                   "inline-block h-1.5 w-1.5 rounded-full",
-                  loading ? "animate-pulse bg-accent" : result ? "bg-primary" : "bg-muted-foreground/40"
+                  loading ? "animate-pulse bg-accent" : response ? "bg-primary" : "bg-muted-foreground/40"
                 )}
               />
-              strategic-evaluator://run/latest
+              {response
+                ? `strategic-evaluator://run/${response.runId.slice(0, 16)}`
+                : "strategic-evaluator://run/latest"}
             </div>
             <div className="font-mono text-[11px] text-muted-foreground">
-              {loading ? "reasoning" : result ? "complete" : "awaiting input"}
+              {loading ? "reasoning" : response ? "complete" : "awaiting input"}
             </div>
           </div>
 
@@ -204,7 +226,7 @@ export function LiveEvaluator() {
               </div>
             )}
 
-            {!error && !result && !loading && (
+            {!error && !response && !loading && (
               <div className="flex h-[340px] flex-col items-center justify-center text-center">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 ring-1 ring-accent/30">
                   <Sparkles className="h-5 w-5 text-accent" />
@@ -228,7 +250,7 @@ export function LiveEvaluator() {
               </div>
             )}
 
-            {result && !loading && <ResultView result={result} />}
+            {response && !loading && <ResultView response={response} />}
           </div>
         </div>
       </div>
@@ -236,7 +258,8 @@ export function LiveEvaluator() {
   );
 }
 
-function ResultView({ result }: { result: EvaluatorResult }) {
+function ResultView({ response }: { response: EvaluateResponse }) {
+  const { result, latencyMs, createdAt } = response;
   const verdictColor =
     result.verdict === "accept"
       ? "text-primary bg-primary/10 ring-primary/30"
@@ -246,6 +269,20 @@ function ResultView({ result }: { result: EvaluatorResult }) {
 
   return (
     <div className="space-y-5">
+      {/* Persisted badge */}
+      <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+        <Badge variant="outline" className="border-primary/30 bg-primary/5 text-primary">
+          <Database className="mr-1 h-3 w-3" />
+          persisted · {response.runId.slice(0, 20)}
+        </Badge>
+        <span className="inline-flex items-center gap-1">
+          <Clock className="h-3 w-3" />
+          {latencyMs}ms
+        </span>
+        <span>·</span>
+        <span>{new Date(createdAt).toLocaleTimeString()}</span>
+      </div>
+
       {/* Score + verdict */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="sm:col-span-1">
@@ -342,7 +379,7 @@ function ResultView({ result }: { result: EvaluatorResult }) {
 
       <div className="rounded-lg border border-dashed border-border/60 bg-muted/20 px-3 py-2 text-[11px] text-muted-foreground">
         <RotateCcw className="mr-1.5 inline h-3 w-3" />
-        Re-runs in &lt; 2 seconds · no filters, no rules — just natural-language reasoning.
+        Run is persisted to your session — find it in the history panel below.
       </div>
     </div>
   );

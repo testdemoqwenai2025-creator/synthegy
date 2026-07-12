@@ -5,6 +5,7 @@ import { Workflows } from "@/components/synthegy/workflows";
 import { Demo } from "@/components/synthegy/demo";
 import { CommercialValue } from "@/components/synthegy/commercial-value";
 import { UseCases } from "@/components/synthegy/use-cases";
+import { Architecture } from "@/components/synthegy/architecture";
 import { Deploy } from "@/components/synthegy/deploy";
 import { CTA } from "@/components/synthegy/cta";
 
@@ -18,6 +19,7 @@ export default function Home() {
         <Demo />
         <CommercialValue />
         <UseCases />
+        <Architecture />
         <Deploy />
         <CTA />
       </main>

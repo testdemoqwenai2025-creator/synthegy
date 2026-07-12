@@ -31,6 +31,7 @@ export function SiteHeader() {
             { href: "#demo", label: "Live Demo" },
             { href: "#commercial", label: "Commercial Value" },
             { href: "#cases", label: "Use Cases" },
+            { href: "#architecture", label: "Architecture" },
             { href: "#deploy", label: "Deploy" },
           ].map((item) => (
             <Link
