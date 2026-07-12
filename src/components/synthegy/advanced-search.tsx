@@ -13,6 +13,8 @@ import {
   Beaker,
   Dna,
   ArrowRight,
+  Target,
+  Crosshair,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,8 +27,11 @@ import {
   type PropertyFilterSpec,
   type PropertyField,
   type ChEMBLBioactivity,
+  type ChEMBLTarget,
+  type ActiveCompound,
   type MoleculeRecord,
 } from "@/lib/synthegy/molecule-api";
+import type { CollectionItemInput } from "@/lib/synthegy/api";
 import { cn } from "@/lib/utils";
 
 // Common scaffolds offered as quick-start chips.
@@ -91,9 +96,10 @@ const ACTIVITY_TYPE_PRESETS = ["", "IC50", "Ki", "Kd", "EC50", "AC50", "Potency"
 
 interface AdvancedSearchProps {
   onUseInEvaluator?: (molecule: MoleculeRecord) => void;
+  onResultsChange?: (items: CollectionItemInput[]) => void;
 }
 
-export function AdvancedSearch({ onUseInEvaluator }: AdvancedSearchProps) {
+export function AdvancedSearch({ onUseInEvaluator, onResultsChange }: AdvancedSearchProps) {
   return (
     <Card className="border-border/60 bg-card">
       <CardContent className="p-5">
@@ -107,8 +113,8 @@ export function AdvancedSearch({ onUseInEvaluator }: AdvancedSearchProps) {
                 Advanced molecular search
               </div>
               <div className="text-[11px] text-muted-foreground">
-                Substructure, property filtering, and ChEMBL bioactivity —
-                backed by PubChem (124M compounds) and ChEMBL (2.4M bioactive
+                Substructure, property filtering, ChEMBL bioactivity, and target-based
+                search — backed by PubChem (124M compounds) and ChEMBL (2.4M bioactive
                 molecules)
               </div>
             </div>
@@ -138,16 +144,26 @@ export function AdvancedSearch({ onUseInEvaluator }: AdvancedSearchProps) {
               <Activity className="mr-1.5 inline h-3 w-3" />
               ChEMBL bioactivity
             </TabsTrigger>
+            <TabsTrigger
+              value="target"
+              className="flex-1 rounded-md px-3 py-1.5 text-xs data-[state=active]:bg-accent/10 data-[state=active]:ring-1 data-[state=active]:ring-accent/30"
+            >
+              <Target className="mr-1.5 inline h-3 w-3" />
+              Target search
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="substructure" className="mt-4">
-            <SubstructureTab onUseInEvaluator={onUseInEvaluator} />
+            <SubstructureTab onUseInEvaluator={onUseInEvaluator} onResultsChange={onResultsChange} />
           </TabsContent>
           <TabsContent value="filter" className="mt-4">
-            <PropertyFilterTab onUseInEvaluator={onUseInEvaluator} />
+            <PropertyFilterTab onUseInEvaluator={onUseInEvaluator} onResultsChange={onResultsChange} />
           </TabsContent>
           <TabsContent value="bioactivity" className="mt-4">
             <BioactivityTab />
+          </TabsContent>
+          <TabsContent value="target" className="mt-4">
+            <TargetSearchTab onResultsChange={onResultsChange} />
           </TabsContent>
         </Tabs>
       </CardContent>
@@ -161,8 +177,10 @@ export function AdvancedSearch({ onUseInEvaluator }: AdvancedSearchProps) {
 
 function SubstructureTab({
   onUseInEvaluator,
+  onResultsChange,
 }: {
   onUseInEvaluator?: (molecule: MoleculeRecord) => void;
+  onResultsChange?: (items: CollectionItemInput[]) => void;
 }) {
   const [smiles, setSmiles] = React.useState("c1ccccc1");
   const [maxRecords, setMaxRecords] = React.useState(12);
@@ -170,6 +188,25 @@ function SubstructureTab({
   const [error, setError] = React.useState<string | null>(null);
   const [results, setResults] = React.useState<CompoundSearchRow[]>([]);
   const [hasRun, setHasRun] = React.useState(false);
+
+  // Lift results to parent whenever they change, so the CollectionsPanel
+  // can offer "Save all" with the right compounds.
+  React.useEffect(() => {
+    if (onResultsChange) {
+      onResultsChange(
+        results.map((r) => ({
+          cid: r.cid,
+          name: r.name,
+          molecularFormula: r.molecularFormula,
+          molecularWeight: r.molecularWeight,
+          canonicalSMILES: r.canonicalSMILES,
+          xlogp: r.xLogP,
+          tpsa: r.tpsa,
+          source: "substructure",
+        }))
+      );
+    }
+  }, [results, onResultsChange]);
 
   const run = async () => {
     if (!smiles.trim()) return;
@@ -270,8 +307,10 @@ function SubstructureTab({
 
 function PropertyFilterTab({
   onUseInEvaluator,
+  onResultsChange,
 }: {
   onUseInEvaluator?: (molecule: MoleculeRecord) => void;
+  onResultsChange?: (items: CollectionItemInput[]) => void;
 }) {
   const [filters, setFilters] = React.useState<PropertyFilterSpec[]>([
     { field: "XLGP", min: 2, max: 4 },
@@ -283,6 +322,23 @@ function PropertyFilterTab({
   const [totalMatches, setTotalMatches] = React.useState<number | null>(null);
   const [results, setResults] = React.useState<CompoundSearchRow[]>([]);
   const [hasRun, setHasRun] = React.useState(false);
+
+  React.useEffect(() => {
+    if (onResultsChange) {
+      onResultsChange(
+        results.map((r) => ({
+          cid: r.cid,
+          name: r.name,
+          molecularFormula: r.molecularFormula,
+          molecularWeight: r.molecularWeight,
+          canonicalSMILES: r.canonicalSMILES,
+          xlogp: r.xLogP,
+          tpsa: r.tpsa,
+          source: "filter",
+        }))
+      );
+    }
+  }, [results, onResultsChange]);
 
   const run = async () => {
     if (!filters.length) return;
@@ -699,6 +755,265 @@ function BioactivityView({ data }: { data: ChEMBLBioactivity }) {
 
       {data.activities.length === 0 && (
         <EmptyBox message="No activity measurements found for this compound in ChEMBL." />
+      )}
+    </div>
+  );
+}
+
+// =========================================================================
+// Target-based search tab (ChEMBL target API)
+// =========================================================================
+
+const TARGET_PRESETS = [
+  "cyclooxygenase",
+  "kinase",
+  "dopamine receptor",
+  "serotonin receptor",
+  "histamine receptor",
+  "EGFR",
+  "VEGFR",
+  "tubulin",
+];
+
+function TargetSearchTab({
+  onResultsChange,
+}: {
+  onResultsChange?: (items: CollectionItemInput[]) => void;
+}) {
+  const [targetQuery, setTargetQuery] = React.useState("cyclooxygenase");
+  const [targets, setTargets] = React.useState<ChEMBLTarget[]>([]);
+  const [selectedTarget, setSelectedTarget] = React.useState<ChEMBLTarget | null>(null);
+  const [activityType, setActivityType] = React.useState("IC50");
+  const [compounds, setCompounds] = React.useState<ActiveCompound[]>([]);
+  const [totalActivities, setTotalActivities] = React.useState<number>(0);
+  const [loadingTargets, setLoadingTargets] = React.useState(false);
+  const [loadingCompounds, setLoadingCompounds] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const searchTargets = async () => {
+    if (!targetQuery.trim()) return;
+    setLoadingTargets(true);
+    setError(null);
+    setTargets([]);
+    setSelectedTarget(null);
+    setCompounds([]);
+    try {
+      const res = await moleculeApi.searchTargets(targetQuery, 10);
+      setTargets(res.targets);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Target search failed");
+    } finally {
+      setLoadingTargets(false);
+    }
+  };
+
+  const selectTarget = async (target: ChEMBLTarget) => {
+    setSelectedTarget(target);
+    setLoadingCompounds(true);
+    setError(null);
+    setCompounds([]);
+    try {
+      const res = await moleculeApi.activeCompoundsForTarget(
+        target.chemblId,
+        activityType || undefined,
+        15
+      );
+      setCompounds(res.compounds);
+      setTotalActivities(res.totalActivities);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Compound lookup failed");
+    } finally {
+      setLoadingCompounds(false);
+    }
+  };
+
+  // Lift results to parent for collection-saving.
+  // Note: ChEMBL compounds come back with SMILES but no PubChem CID,
+  // so we use a synthetic CID of 0 and rely on the SMILES for identity.
+  React.useEffect(() => {
+    if (onResultsChange) {
+      onResultsChange(
+        compounds
+          .filter((c) => c.canonicalSMILES)
+          .map((c) => ({
+            cid: 0, // ChEMBL compounds may not have a PubChem CID
+            name: c.prefName ?? c.chemblId,
+            canonicalSMILES: c.canonicalSMILES!,
+            source: `target:${selectedTarget?.prefName ?? "unknown"}`,
+          }))
+      );
+    }
+  }, [compounds, selectedTarget, onResultsChange]);
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          Target name
+        </label>
+        <div className="mt-1 flex gap-2">
+          <input
+            value={targetQuery}
+            onChange={(e) => setTargetQuery(e.target.value)}
+            className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent focus:ring-1 focus:ring-accent"
+            placeholder="e.g. cyclooxygenase, EGFR, dopamine receptor"
+          />
+          <Button onClick={searchTargets} disabled={loadingTargets}>
+            {loadingTargets ? (
+              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+            ) : (
+              <Target className="mr-1.5 h-4 w-4" />
+            )}
+            Find targets
+          </Button>
+        </div>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          <span className="text-[11px] text-muted-foreground">Try:</span>
+          {TARGET_PRESETS.map((t) => (
+            <button
+              key={t}
+              onClick={() => setTargetQuery(t)}
+              className="rounded-full border border-border/60 bg-muted/30 px-2.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:border-accent/40 hover:text-foreground"
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {error && <ErrorBox message={error} />}
+
+      {/* Target results */}
+      {loadingTargets && <LoadingBox label="Searching ChEMBL targets..." />}
+
+      {!loadingTargets && targets.length > 0 && (
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Matching targets ({targets.length})
+          </div>
+          <div className="mt-2 space-y-1.5">
+            {targets.map((t) => (
+              <button
+                key={t.chemblId}
+                onClick={() => selectTarget(t)}
+                className={cn(
+                  "flex w-full items-center gap-3 rounded-md border px-3 py-2 text-left transition-colors",
+                  selectedTarget?.chemblId === t.chemblId
+                    ? "border-accent bg-accent/10"
+                    : "border-border/60 bg-background hover:bg-muted/30"
+                )}
+              >
+                <Crosshair className="h-4 w-4 shrink-0 text-accent" />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[12px] font-medium text-foreground">
+                    {t.prefName}
+                  </div>
+                  <div className="flex flex-wrap gap-x-2 text-[11px] text-muted-foreground">
+                    <span className="font-mono">{t.chemblId}</span>
+                    <span>{t.targetType}</span>
+                    {t.organism && <span>· {t.organism}</span>}
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Selected target + active compounds */}
+      {selectedTarget && (
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-accent/30 bg-accent/5 px-3 py-2">
+            <Crosshair className="h-4 w-4 text-accent" />
+            <span className="text-[12px] font-medium text-foreground">
+              {selectedTarget.prefName}
+            </span>
+            <span className="font-mono text-[11px] text-muted-foreground">
+              {selectedTarget.chemblId}
+            </span>
+            <span className="text-[11px] text-muted-foreground">
+              · {selectedTarget.organism}
+            </span>
+            <a
+              href={selectedTarget.chemblUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ml-auto inline-flex items-center gap-1 text-[11px] text-accent hover:underline"
+            >
+              View on ChEMBL
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="text-[11px] text-muted-foreground">Activity type:</label>
+            <select
+              value={activityType}
+              onChange={(e) => {
+                setActivityType(e.target.value);
+                if (selectedTarget) selectTarget(selectedTarget);
+              }}
+              className="rounded-md border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none focus:border-accent"
+            >
+              {ACTIVITY_TYPE_PRESETS.map((t) => (
+                <option key={t} value={t}>
+                  {t || "Any"}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {loadingCompounds && <LoadingBox label="Finding active compounds..." />}
+
+          {!loadingCompounds && compounds.length > 0 && (
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-primary">
+                Most potent compounds ({totalActivities.toLocaleString()} total
+                activities, top {compounds.length} by potency)
+              </div>
+              <div className="mt-2 max-h-[500px] space-y-1.5 overflow-y-auto scrollbar-slim">
+                {compounds.map((c) => (
+                  <div
+                    key={c.chemblId}
+                    className="rounded-md border border-border/60 bg-background px-3 py-2"
+                  >
+                    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                      <span className="font-mono text-[11px] text-muted-foreground">
+                        {c.chemblId}
+                      </span>
+                      {c.prefName && (
+                        <span className="text-[12px] font-medium text-foreground">
+                          {c.prefName}
+                        </span>
+                      )}
+                      {c.pChemblValue !== null && (
+                        <span className="ml-auto text-[11px] text-primary">
+                          pChEMBL {c.pChemblValue.toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+                      <span className="font-mono text-foreground">
+                        {c.standardType} {c.relation} {formatValue(c.standardValue, c.standardUnits)}
+                      </span>
+                      {c.year && <span>· {c.year}</span>}
+                      {c.journal && <span>· {c.journal}</span>}
+                    </div>
+                    {c.canonicalSMILES && (
+                      <div className="mt-1 truncate font-mono text-[10px] text-muted-foreground">
+                        {c.canonicalSMILES}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!loadingCompounds && compounds.length === 0 && !error && (
+            <EmptyBox message="No active compounds found for this target with the selected activity type." />
+          )}
+        </div>
       )}
     </div>
   );

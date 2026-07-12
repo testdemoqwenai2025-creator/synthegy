@@ -63,6 +63,34 @@ db.exec(`
     metrics_json TEXT NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS collections (
+    id TEXT PRIMARY KEY,
+    label TEXT NOT NULL,
+    description TEXT,
+    chemist_id TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS collection_items (
+    id TEXT PRIMARY KEY,
+    collection_id TEXT NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
+    cid INTEGER NOT NULL,
+    name TEXT,
+    molecular_formula TEXT,
+    molecular_weight TEXT,
+    canonical_smiles TEXT NOT NULL,
+    inchikey TEXT,
+    xlogp REAL,
+    tpsa REAL,
+    source TEXT,             -- 'substructure' | 'filter' | 'explorer' | 'manual' | 'target:...'
+    added_at INTEGER NOT NULL,
+    UNIQUE(collection_id, cid, canonical_smiles)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_items_collection ON collection_items(collection_id);
+  CREATE INDEX IF NOT EXISTS idx_items_cid ON collection_items(cid);
+
   CREATE TABLE IF NOT EXISTS rate_limits (
     key TEXT PRIMARY KEY,
     tokens REAL NOT NULL,
@@ -140,6 +168,30 @@ export interface RunRow {
   raw_json: string | null;
   latency_ms: number | null;
   created_at: number;
+}
+
+export interface CollectionRow {
+  id: string;
+  label: string;
+  description: string | null;
+  chemist_id: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface CollectionItemRow {
+  id: string;
+  collection_id: string;
+  cid: number;
+  name: string | null;
+  molecular_formula: string | null;
+  molecular_weight: string | null;
+  canonical_smiles: string;
+  inchikey: string | null;
+  xlogp: number | null;
+  tpsa: number | null;
+  source: string | null;
+  added_at: number;
 }
 
 export function newId(prefix: string): string {

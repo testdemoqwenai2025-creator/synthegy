@@ -82,6 +82,48 @@ export interface UseCase {
   metrics: { label: string; value: string }[];
 }
 
+// --- Collections (named compound sets) ------------------------------------
+
+export interface Collection {
+  id: string;
+  label: string;
+  description: string | null;
+  chemistId: string | null;
+  itemCount: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+// A collection as returned by GET /:id (no itemCount field, has items[] instead).
+export type CollectionWithoutCount = Omit<Collection, "itemCount">;
+
+export interface CollectionItem {
+  id: string;
+  collectionId: string;
+  cid: number;
+  name: string | null;
+  molecularFormula: string | null;
+  molecularWeight: string | null;
+  canonicalSMILES: string;
+  inchikey: string | null;
+  xlogp: number | null;
+  tpsa: number | null;
+  source: string | null;
+  addedAt: number;
+}
+
+export interface CollectionItemInput {
+  cid: number;
+  name?: string;
+  molecularFormula?: string;
+  molecularWeight?: string;
+  canonicalSMILES: string;
+  inchikey?: string;
+  xlogp?: number;
+  tpsa?: number;
+  source?: string;
+}
+
 // --- Core fetch wrapper ---------------------------------------------------
 
 export class ApiError extends Error {
@@ -190,5 +232,40 @@ export const api = {
     apiFetch<{ count: number; sectors: string[]; useCases: UseCase[] }>(
       "/api/use-cases",
       { query: sector ? { sector } : undefined }
+    ),
+
+  // Collections (named compound sets)
+  listCollections: () =>
+    apiFetch<{ count: number; collections: Collection[] }>("/api/collections"),
+  createCollection: (label: string, description?: string) =>
+    apiFetch<{ collection: Collection }>("/api/collections", {
+      method: "POST",
+      body: JSON.stringify({ label, description }),
+    }),
+  getCollection: (id: string) =>
+    apiFetch<{ collection: CollectionWithoutCount; items: CollectionItem[] }>(
+      `/api/collections/${id}`
+    ),
+  updateCollection: (id: string, patch: { label?: string; description?: string | null }) =>
+    apiFetch<{ ok: boolean; updatedAt: number }>(
+      `/api/collections/${id}`,
+      { method: "PATCH", body: JSON.stringify(patch) }
+    ),
+  deleteCollection: (id: string) =>
+    apiFetch<{ ok: boolean }>(`/api/collections/${id}`, { method: "DELETE" }),
+  addCollectionItem: (collectionId: string, item: CollectionItemInput) =>
+    apiFetch<{ ok: boolean; itemId: string; addedAt: number }>(
+      `/api/collections/${collectionId}/items`,
+      { method: "POST", body: JSON.stringify(item) }
+    ),
+  addCollectionItemsBulk: (collectionId: string, items: CollectionItemInput[]) =>
+    apiFetch<{ ok: boolean; added: number; skipped: number; addedAt: number }>(
+      `/api/collections/${collectionId}/items/bulk`,
+      { method: "POST", body: JSON.stringify({ items }) }
+    ),
+  removeCollectionItem: (collectionId: string, cid: number) =>
+    apiFetch<{ ok: boolean }>(
+      `/api/collections/${collectionId}/items/${cid}`,
+      { method: "DELETE" }
     ),
 };

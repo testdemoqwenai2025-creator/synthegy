@@ -32,6 +32,7 @@ import { scenarios } from "./src/routes/scenarios.ts";
 import { useCases } from "./src/routes/useCases.ts";
 import { sessions } from "./src/routes/sessions.ts";
 import { evaluate } from "./src/routes/evaluate.ts";
+import { collections } from "./src/routes/collections.ts";
 
 import "./src/db.ts"; // initialise schema + seed
 
@@ -57,6 +58,7 @@ app.route("/api/scenarios", scenarios);
 app.route("/api/use-cases", useCases);
 app.route("/api/sessions", sessions);
 app.route("/api/evaluate", evaluate);
+app.route("/api/collections", collections);
 
 // 404 for anything else
 app.notFound((c) =>
@@ -77,6 +79,14 @@ console.log(`  PATCH /api/sessions/:id`);
 console.log(`  DELETE /api/sessions/:id`);
 console.log(`  POST /api/evaluate`);
 console.log(`  GET  /api/evaluate/:id`);
+console.log(`  GET  /api/collections`);
+console.log(`  POST /api/collections`);
+console.log(`  GET  /api/collections/:id`);
+console.log(`  PATCH /api/collections/:id`);
+console.log(`  DELETE /api/collections/:id`);
+console.log(`  POST /api/collections/:id/items`);
+console.log(`  POST /api/collections/:id/items/bulk`);
+console.log(`  DELETE /api/collections/:id/items/:cid`);
 
 Bun.serve({ port: PORT, fetch: app.fetch });
 

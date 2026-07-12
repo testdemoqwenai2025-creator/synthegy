@@ -466,3 +466,51 @@ function normaliseProperties(
     complexity: raw.Complexity !== undefined ? Number(raw.Complexity) : undefined,
   };
 }
+
+// --- SDF (Structure-Data File) fetch --------------------------------------
+
+// Fetches the 2D SDF record for a compound from PubChem. The SDF includes
+// the full connection table (atoms + bonds) plus PubChem's computed
+// properties, suitable for loading into RDKit, OpenBabel, ChemDraw, etc.
+//
+// Cached for 30 days (structures are immutable).
+export async function getSDFByCID(cid: number): Promise<string | null> {
+  const key = `sdf:cid:${cid}`;
+  const cached = cacheGet<string>(key);
+  if (cached) return cached;
+
+  const url = `${PUBCHEM_BASE}/compound/cid/${cid}/SDF?record_type=2d`;
+  await respectRateLimit();
+  const res = await fetch(url);
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(`PubChem SDF returned ${res.status} for CID ${cid}`);
+  }
+  const sdf = await res.text();
+  cacheSet(key, sdf, { ttlMs: TTL.PROPERTIES, kind: "properties" });
+  return sdf;
+}
+
+// Fetch SDF records for multiple CIDs in a single PubChem request
+// (PubChem supports comma-separated CIDs, returns concatenated SDF).
+export async function getSDFByCIDs(cids: number[]): Promise<string> {
+  if (cids.length === 0) return "";
+  if (cids.length === 1) {
+    const sdf = await getSDFByCID(cids[0]);
+    return sdf ?? "";
+  }
+  const cidList = cids.slice(0, 100).join(","); // PubChem limit
+  const key = `sdf:cids:${cidList}`;
+  const cached = cacheGet<string>(key);
+  if (cached) return cached;
+
+  const url = `${PUBCHEM_BASE}/compound/cid/${cidList}/SDF?record_type=2d`;
+  await respectRateLimit();
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`PubChem SDF batch returned ${res.status}`);
+  }
+  const sdf = await res.text();
+  cacheSet(key, sdf, { ttlMs: TTL.PROPERTIES, kind: "properties" });
+  return sdf;
+}

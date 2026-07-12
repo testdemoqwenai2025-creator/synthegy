@@ -60,13 +60,17 @@ console.log(`  GET  /api/molecule/similarity?smiles=&threshold=&max=`);
 console.log(`  GET  /api/molecule/substructure?smiles=&max=    (substructure search)`);
 console.log(`  GET  /api/molecule/filter?fields=XLGP:2:4,TPSA:60:100&limit=15`);
 console.log(`  GET  /api/molecule/bioactivity?inchikey=&type=IC50  (ChEMBL)`);
+console.log(`  GET  /api/molecule/targets/search?q=            (ChEMBL target search)`);
+console.log(`  GET  /api/molecule/targets/:chemblId/compounds?type=&limit=`);
+console.log(`  GET  /api/molecule/export/sdf?cids=2244,5161    (SDF download)`);
+console.log(`  GET  /api/molecule/export/csv?cids=2244,5161    (CSV download)`);
 console.log(`  GET  /api/molecule/name/:name/image?size=  (PNG proxy)`);
 console.log(`  GET  /api/molecule/cid/:cid/image?size=    (PNG proxy)`);
 console.log(`  GET  /api/molecule/cid/:cid/synonyms`);
 console.log(`  GET  /api/molecule/stats                   (cache stats)`);
 console.log(`  POST /api/molecule/cache/clear             (purge expired)`);
 
-Bun.serve({ port: PORT, fetch: app.fetch });
+Bun.serve({ port: PORT, fetch: app.fetch, idleTimeout: 60 });
 
 process.on("SIGINT", () => {
   console.log("\n[synthegy-molecule] shutting down...");

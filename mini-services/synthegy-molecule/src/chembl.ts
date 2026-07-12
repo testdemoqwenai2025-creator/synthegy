@@ -187,6 +187,9 @@ interface ChEMBLActivityResponse {
     pchembl_value?: string | null;
     document_journal?: string | null;
     document_year?: number | null;
+    molecule_chembl_id?: string;
+    molecule_pref_name?: string | null;
+    canonical_smiles?: string | null;
   }>;
   page_meta?: { total_count?: number };
 }
@@ -257,5 +260,130 @@ export async function getBioactivity(
     activities: activityResult.activities,
     totalActivities: activityResult.total,
     fetchedAt: Date.now(),
+  };
+}
+
+// --- Target-based search --------------------------------------------------
+
+// ChEMBL target record (subset of fields we care about).
+export interface ChEMBLTarget {
+  chemblId: string;
+  targetType: string;        // "SINGLE PROTEIN", "ORGANISM", "CELL-LINE", etc.
+  prefName: string;
+  organism: string | null;
+  taxId: number | null;
+  speciesGroupFlag: boolean;
+  chemblUrl: string;
+}
+
+export interface TargetSearchResult {
+  query: string;
+  targets: ChEMBLTarget[];
+  total: number;
+}
+
+// Search ChEMBL targets by preferred name (case-insensitive contains).
+export async function searchTargets(
+  query: string,
+  limit: number = 10
+): Promise<TargetSearchResult> {
+  const clean = query.trim();
+  if (!clean) return { query: "", targets: [], total: 0 };
+  const params = new URLSearchParams({
+    pref_name__icontains: clean,
+    limit: String(Math.min(limit, 25)),
+  });
+  const path = `/target.json?${params.toString()}`;
+  const data = await chemblFetch<{
+    targets?: Array<{
+      target_chembl_id?: string;
+      target_type?: string;
+      pref_name?: string;
+      organism?: string | null;
+      tax_id?: number | null;
+      species_group_flag?: boolean;
+    }>;
+    page_meta?: { total_count?: number };
+  }>(path);
+  if (!data?.targets) return { query: clean, targets: [], total: 0 };
+  return {
+    query: clean,
+    total: data.page_meta?.total_count ?? data.targets.length,
+    targets: data.targets.map((t) => ({
+      chemblId: t.target_chembl_id ?? "",
+      targetType: t.target_type ?? "UNKNOWN",
+      prefName: t.pref_name ?? "",
+      organism: t.organism ?? null,
+      taxId: t.tax_id ?? null,
+      speciesGroupFlag: t.species_group_flag === true,
+      chemblUrl: `https://www.ebi.ac.uk/chembl/target_report_card/${t.target_chembl_id}/`,
+    })),
+  };
+}
+
+// Compound active against a target (grouped + ranked by potency).
+export interface ActiveCompound {
+  chemblId: string;
+  prefName: string | null;
+  canonicalSMILES: string | null;
+  standardType: string;       // "IC50", "Ki", etc.
+  standardValue: number | null;
+  standardUnits: string | null;
+  pChemblValue: number | null;
+  assayDescription: string | null;
+  journal: string | null;
+  year: number | null;
+}
+
+export interface TargetActivitiesResult {
+  targetChemblId: string;
+  totalActivities: number;
+  compounds: ActiveCompound[];
+}
+
+// Get the most potent compounds active against a named target.
+// Returns distinct compounds ranked by pChemblValue descending.
+export async function getActiveCompoundsForTarget(
+  targetChemblId: string,
+  opts: { type?: string; limit?: number } = {}
+): Promise<TargetActivitiesResult> {
+  const limit = Math.min(opts.limit ?? 15, 50);
+  const params = new URLSearchParams({
+    target_chembl_id: targetChemblId,
+    limit: String(limit * 3), // over-fetch to dedupe by molecule
+    order_by: "-pchembl_value",
+    pchembl_value__isnull: "false",
+    standard_value__gt: "0",
+  });
+  if (opts.type) params.set("standard_type", opts.type);
+  const path = `/activity.json?${params.toString()}`;
+  const data = await chemblFetch<ChEMBLActivityResponse>(path);
+  const activities = data?.activities ?? [];
+  const totalCount = data?.page_meta?.total_count ?? 0;
+
+  // Dedupe by molecule_chembl_id, keeping the most potent entry per compound.
+  const seen = new Map<string, ActiveCompound>();
+  for (const a of activities) {
+    const molId = a.molecule_chembl_id;
+    if (!molId) continue;
+    if (seen.has(molId)) continue;
+    seen.set(molId, {
+      chemblId: molId,
+      prefName: a.molecule_pref_name ?? null,
+      canonicalSMILES: a.canonical_smiles ?? null,
+      standardType: a.standard_type ?? "Unknown",
+      standardValue: a.standard_value ? Number(a.standard_value) : null,
+      standardUnits: a.standard_units ?? null,
+      pChemblValue: a.pchembl_value ? Number(a.pchembl_value) : null,
+      assayDescription: a.assay_description ?? null,
+      journal: a.document_journal ?? null,
+      year: a.document_year ?? null,
+    });
+    if (seen.size >= limit) break;
+  }
+  return {
+    targetChemblId,
+    totalActivities: totalCount,
+    compounds: Array.from(seen.values()),
   };
 }

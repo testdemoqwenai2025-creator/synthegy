@@ -1,54 +1,71 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+bun.lockb
 
-# dependencies
-node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
+# Testing
+coverage/
 
-# testing
-/coverage
+# Next.js
+.next/
+out/
+build/
+dist/
 
-# next.js
-/.next/
-/out/
+# Production
+*.tsbuildinfo
+next-env.d.ts
 
-# production
-/build
-
-# misc
+# Misc
 .DS_Store
 *.pem
 
-# debug
+# Debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# Local env files
+.env
+.env*.local
+.env.development
+.env.production
 
-# vercel
+# Vercel
 .vercel
 
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
-local-*
-.claude
-.z-ai-config
-*.log
+# Logs
 dev.log
-dev.out.log
-test
-prompt
-
 server.log
-# Skills directory
-/skills/
+*.log
+
+# Database files (runtime state — seeded on first boot)
+mini-services/*/synthegy*.db
+mini-services/*/synthegy*.db-wal
+mini-services/*/synthegy*.db-shm
+
+# Backend runtime logs
+/tmp/synthegy-*.log
+
+# Generated screenshots (kept in download/ for user, but not committed)
+# download/ — actually keep this, it has deliverables
+
+# OS files
+Thumbs.db
+
+# Skills (internal platform tooling, not part of the project)
+skills/
+
+# Zscripts (internal dev tooling)
+.zscripts/
+worklog.md
+examples/

@@ -26,7 +26,9 @@ import { LiveEvaluator } from "./live-evaluator";
 import { SessionHistory } from "./session-history";
 import { MoleculeExplorer } from "./molecule-explorer";
 import { AdvancedSearch } from "./advanced-search";
+import { CollectionsPanel } from "./collections-panel";
 import type { MoleculeRecord } from "@/lib/synthegy/molecule-api";
+import type { CollectionItemInput } from "@/lib/synthegy/api";
 
 export function Demo() {
   // refreshKey bumps every time a run is persisted, so the SessionHistory
@@ -36,6 +38,12 @@ export function Demo() {
   // evaluator prompt with real PubChem data.
   const [enrichedMolecule, setEnrichedMolecule] =
     React.useState<{ name: string; record: MoleculeRecord } | null>(null);
+  // Current search results from AdvancedSearch — fed to CollectionsPanel
+  // so the chemist can save them to a named collection.
+  const [currentSearchResults, setCurrentSearchResults] =
+    React.useState<CollectionItemInput[]>([]);
+  // Collections refresh key — bumped when a collection is modified externally.
+  const [collectionsRefreshKey, setCollectionsRefreshKey] = React.useState(0);
 
   return (
     <section id="demo" className="relative scroll-mt-24 border-y border-border/40 bg-muted/15 py-20">
@@ -91,7 +99,14 @@ export function Demo() {
           <TabsContent value="live" className="mt-6">
             <div className="space-y-6">
               <MoleculeExplorer onUseInEvaluator={(m) => setEnrichedMolecule({ name: m.properties.iupacName ?? "molecule", record: m })} />
-              <AdvancedSearch onUseInEvaluator={(m) => setEnrichedMolecule({ name: m.properties.iupacName ?? "molecule", record: m })} />
+              <AdvancedSearch
+                onUseInEvaluator={(m) => setEnrichedMolecule({ name: m.properties.iupacName ?? "molecule", record: m })}
+                onResultsChange={setCurrentSearchResults}
+              />
+              <CollectionsPanel
+                currentResults={currentSearchResults}
+                refreshKey={collectionsRefreshKey}
+              />
               <LiveEvaluator
                 onRunPersisted={() => setHistoryRefreshKey((k) => k + 1)}
                 enrichedMolecule={enrichedMolecule}

@@ -145,6 +145,42 @@ export interface ChEMBLBioactivity {
   fetchedAt: number;
 }
 
+// Target-based search types
+export interface ChEMBLTarget {
+  chemblId: string;
+  targetType: string;
+  prefName: string;
+  organism: string | null;
+  taxId: number | null;
+  speciesGroupFlag: boolean;
+  chemblUrl: string;
+}
+
+export interface TargetSearchResult {
+  query: string;
+  targets: ChEMBLTarget[];
+  total: number;
+}
+
+export interface ActiveCompound {
+  chemblId: string;
+  prefName: string | null;
+  canonicalSMILES: string | null;
+  standardType: string;
+  standardValue: number | null;
+  standardUnits: string | null;
+  pChemblValue: number | null;
+  assayDescription: string | null;
+  journal: string | null;
+  year: number | null;
+}
+
+export interface TargetActivitiesResult {
+  targetChemblId: string;
+  totalActivities: number;
+  compounds: ActiveCompound[];
+}
+
 // --- Core fetch -----------------------------------------------------------
 
 export class MoleculeApiError extends Error {
@@ -203,7 +239,19 @@ export function moleculeImageUrl(
   const url = new URL(path, window.location.origin);
   url.searchParams.set("XTransformPort", String(MOLECULE_PORT));
   url.searchParams.set("size", size);
-  // API key as query so the <img> tag can fetch it directly.
+  url.searchParams.set("apiKey", API_KEY);
+  return url.toString();
+}
+
+// --- Export URL helper (used directly in <a href>) -----------------------
+
+export function exportUrl(
+  format: "sdf" | "csv",
+  cids: number[]
+): string {
+  const url = new URL(`/api/molecule/export/${format}`, window.location.origin);
+  url.searchParams.set("XTransformPort", String(MOLECULE_PORT));
+  url.searchParams.set("cids", cids.join(","));
   url.searchParams.set("apiKey", API_KEY);
   return url.toString();
 }
@@ -250,6 +298,16 @@ export const moleculeApi = {
   bioactivity: (inchikey: string, type?: string) =>
     molFetch<{ bioactivity: ChEMBLBioactivity }>(`/api/molecule/bioactivity`, {
       query: type ? { inchikey, type } : { inchikey },
+    }),
+
+  searchTargets: (q: string, limit: number = 10) =>
+    molFetch<TargetSearchResult>(`/api/molecule/targets/search`, {
+      query: { q, limit: String(limit) },
+    }),
+
+  activeCompoundsForTarget: (chemblId: string, type?: string, limit: number = 15) =>
+    molFetch<TargetActivitiesResult>(`/api/molecule/targets/${chemblId}/compounds`, {
+      query: { limit: String(limit), ...(type ? { type } : {}) },
     }),
 
   synonyms: (cid: number) =>

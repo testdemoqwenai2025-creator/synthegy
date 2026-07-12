@@ -12,11 +12,17 @@ import {
   substructureSearch,
   propertyFilter,
   getStructureImage,
+  getSDFByCID,
+  getSDFByCIDs,
   type CompoundProperties,
   type CompoundDescription,
   type PropertyFilter,
 } from "../pubchem.ts";
-import { getBioactivity } from "../chembl.ts";
+import {
+  getBioactivity,
+  searchTargets,
+  getActiveCompoundsForTarget,
+} from "../chembl.ts";
 import { cacheStats, cacheClearExpired } from "../cache.ts";
 
 export const molecule = new Hono();
@@ -346,6 +352,132 @@ molecule.get("/bioactivity", async (c) => {
     throw new Error(`ChEMBL lookup failed: ${err.message}`);
   });
   return c.json({ bioactivity: result });
+});
+
+// --- Target-based search (ChEMBL) -----------------------------------------
+
+// GET /api/molecule/targets/search?q=cyclooxygenase&limit=10
+// Search ChEMBL targets by preferred name.
+molecule.get("/targets/search", async (c) => {
+  const q = c.req.query("q") ?? "";
+  const limit = Math.min(Number(c.req.query("limit") ?? 10), 25);
+  if (!q.trim()) {
+    return c.json({ error: "validation_error", message: "q query parameter is required" }, 400);
+  }
+  const result = await searchTargets(q, limit).catch((err) => {
+    throw new Error(`ChEMBL target search failed: ${err.message}`);
+  });
+  return c.json(result);
+});
+
+// GET /api/molecule/targets/:chemblId/compounds?type=IC50&limit=15
+// Get the most potent compounds active against a named target.
+molecule.get("/targets/:chemblId/compounds", async (c) => {
+  const chemblId = c.req.param("chemblId");
+  const type = c.req.query("type") || undefined;
+  const limit = Math.min(Number(c.req.query("limit") ?? 15), 50);
+  const result = await getActiveCompoundsForTarget(chemblId, { type, limit }).catch((err) => {
+    throw new Error(`ChEMBL target activities failed: ${err.message}`);
+  });
+  return c.json(result);
+});
+
+// --- Export (SDF + CSV) ---------------------------------------------------
+
+// GET /api/molecule/export/sdf?cids=2244,5161,1326
+// Returns a concatenated SDF file for the given CIDs (from PubChem).
+molecule.get("/export/sdf", async (c) => {
+  const cidsParam = c.req.query("cids") ?? "";
+  if (!cidsParam.trim()) {
+    return c.json(
+      { error: "validation_error", message: "cids query parameter is required (comma-separated)" },
+      400
+    );
+  }
+  const cids = cidsParam
+    .split(",")
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isFinite(n) && n > 0)
+    .slice(0, 100);
+  if (cids.length === 0) {
+    return c.json({ error: "validation_error", message: "No valid CIDs provided." }, 400);
+  }
+  const sdf = await getSDFByCIDs(cids).catch((err) => {
+    throw new Error(`SDF export failed: ${err.message}`);
+  });
+  return new Response(sdf, {
+    headers: {
+      "Content-Type": "chemical/x-mdl-sdfile",
+      "Content-Disposition": `attachment; filename="synthegy_compounds_${cids.length}.sdf"`,
+      "Cache-Control": "public, max-age=2592000",
+    },
+  });
+});
+
+// GET /api/molecule/export/csv?cids=2244,5161,1326
+// Returns a CSV file with compound properties (no structure, but SMILES included).
+molecule.get("/export/csv", async (c) => {
+  const cidsParam = c.req.query("cids") ?? "";
+  if (!cidsParam.trim()) {
+    return c.json(
+      { error: "validation_error", message: "cids query parameter is required (comma-separated)" },
+      400
+    );
+  }
+  const cids = cidsParam
+    .split(",")
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isFinite(n) && n > 0)
+    .slice(0, 100);
+  if (cids.length === 0) {
+    return c.json({ error: "validation_error", message: "No valid CIDs provided." }, 400);
+  }
+  const propLookups = await Promise.all(
+    cids.map((cid) => getPropertiesByCID(cid).catch(() => null))
+  );
+  const rows = propLookups
+    .filter((p): p is CompoundProperties => p !== null)
+    .map((p) => ({
+      cid: p.cid,
+      name: p.iupacName ?? "",
+      molecular_formula: p.molecularFormula,
+      molecular_weight: p.molecularWeight,
+      canonical_smiles: p.canonicalSMILES,
+      isomeric_smiles: p.isomericSMILES ?? "",
+      inchikey: p.inChIKey,
+      inchi: p.inChI ?? "",
+      xlogp: p.xLogP ?? "",
+      tpsa: p.tpsa ?? "",
+      rotatable_bonds: p.rotatableBondCount ?? "",
+      heavy_atoms: p.heavyAtomCount ?? "",
+      charge: p.charge ?? 0,
+      complexity: p.complexity ?? "",
+    }));
+
+  const headers = [
+    "cid", "name", "molecular_formula", "molecular_weight",
+    "canonical_smiles", "isomeric_smiles", "inchikey", "inchi",
+    "xlogp", "tpsa", "rotatable_bonds", "heavy_atoms", "charge", "complexity",
+  ];
+  const escapeCsv = (v: string | number) => {
+    const s = String(v);
+    if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+      return `"${s.replace(/"/g, '""')}"`;
+    }
+    return s;
+  };
+  const csv = [
+    headers.join(","),
+    ...rows.map((r) => headers.map((h) => escapeCsv((r as Record<string, unknown>)[h] ?? "")).join(",")),
+  ].join("\n");
+
+  return new Response(csv, {
+    headers: {
+      "Content-Type": "text/csv",
+      "Content-Disposition": `attachment; filename="synthegy_compounds_${rows.length}.csv"`,
+      "Cache-Control": "public, max-age=3600",
+    },
+  });
 });
 
 // GET /api/molecule/stats — cache statistics (for ops dashboard)
