@@ -5,16 +5,19 @@ const API_KEY = process.env.NEXT_PUBLIC_SYNTHYGY_API_KEY || "synthegy-demo-key";
 
 export interface PatientSummary {
   patientId: string;
+  disease: string;
+  diseaseKey: string;
+  target: string;
   diagnosisYear: number;
   ageAtOnset: number;
   sex: string;
   ethnicity: string;
-  acpaPositive: boolean;
-  rfPositive: boolean;
-  das28AtDx: number;
+  biomarkers: Record<string, boolean | number>;
+  primaryMetric: string;
+  primaryScoreAtDx: number;
   treatmentCount: number;
   outcome24m: string;
-  das28_24m: number;
+  score24m: number;
   isOutlier: boolean;
   outlierType: string | null;
 }
@@ -52,14 +55,17 @@ export interface PatientFull extends PatientSummary {
 }
 
 export interface CohortAnalysis {
+  disease?: string;
+  diseaseKey?: string;
   totalPatients: number;
   demographics: { femalePct: number; meanAgeAtOnset: number; smokerPct: number };
   biomarkers: { acpaPositivePct: number; rfPositivePct: number; meanDas28AtDx: number };
   outcomes: { remissionRate: number; ldaRate: number; moderateRate: number; highRate: number };
-  treatmentResponse: { mtxTreatedCount: number; mtxAcr50Rate: number; biologicTreatedCount: number; biologicAcr50Rate: number };
+  treatmentResponse: { stdTreatedCount?: number; mtxTreatedCount?: number; stdAcr50Rate?: number; mtxAcr50Rate?: number; biologicTreatedCount: number; biologicAcr50Rate: number };
   adverseEvents: { anyAePct: number; seriousAeCount: number };
   outliers: number;
   diagnosisYearRange: [number, number];
+  primaryMetric?: string;
 }
 
 export interface OutcomeAnalysis {
@@ -83,18 +89,24 @@ async function clinFetch<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const clinicalApi = {
-  generate: (n: number = 50) =>
-    clinFetch<{ generated: number; analysis: CohortAnalysis }>(`/api/clinical/generate?n=${n}`, { method: "POST" }),
+  generate: (disease: string = "rheumatoid_arthritis", n: number = 50, force: boolean = false) =>
+    clinFetch<{ generated: number; disease: string; analysis: CohortAnalysis }>(`/api/clinical/generate?disease=${disease}&n=${n}${force ? "&force=true" : ""}`, { method: "POST" }),
 
-  listPatients: () =>
-    clinFetch<{ count: number; patients: PatientSummary[] }>("/api/clinical/patients"),
+  listDiseases: () =>
+    clinFetch<{ diseases: Array<{ key: string; name: string; icd10: string; target: string; meanAgeOnset: number; femalePct: number }> }>("/api/clinical/diseases"),
+
+  listPatients: (disease?: string) =>
+    clinFetch<{ count: number; patients: PatientSummary[] }>(`/api/clinical/patients${disease ? `?disease=${disease}` : ""}`),
 
   getPatient: (id: string) =>
     clinFetch<{ patient: PatientFull }>(`/api/clinical/patients/${id}`),
 
-  analysis: () =>
-    clinFetch<{ analysis: CohortAnalysis }>("/api/clinical/analysis"),
+  analysis: (disease?: string) =>
+    clinFetch<{ analysis: CohortAnalysis }>(`/api/clinical/analysis${disease ? `?disease=${disease}` : ""}`),
 
-  outcomes: () =>
-    clinFetch<OutcomeAnalysis>("/api/clinical/outcomes"),
+  compare: () =>
+    clinFetch<{ diseases: number; comparisons: CohortAnalysis[]; disclaimer: string }>("/api/clinical/compare"),
+
+  outcomes: (disease?: string) =>
+    clinFetch<OutcomeAnalysis>(`/api/clinical/outcomes${disease ? `?disease=${disease}` : ""}`),
 };

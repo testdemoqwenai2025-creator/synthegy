@@ -12,6 +12,7 @@ import {
   ChevronDown,
   ChevronRight,
   RefreshCw,
+  Globe,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -24,12 +25,17 @@ import {
   PieChart,
   Pie,
   Cell,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Radar,
   Legend,
 } from "recharts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { clinicalApi, type PatientSummary, type CohortAnalysis, type OutcomeAnalysis, type PatientFull } from "@/lib/synthegy/clinical-api";
+import { clinicalApi, type PatientSummary, type CohortAnalysis, type OutcomeAnalysis } from "@/lib/synthegy/clinical-api";
 import { cn } from "@/lib/utils";
 
 const OUTCOME_COLORS: Record<string, string> = {
@@ -38,57 +44,74 @@ const OUTCOME_COLORS: Record<string, string> = {
   moderate_activity: "var(--accent)",
   high_activity: "var(--destructive)",
 };
-
 const OUTCOME_LABELS: Record<string, string> = {
   remission: "Remission",
-  low_disease_activity: "Low disease activity",
-  moderate_activity: "Moderate activity",
+  low_disease_activity: "Low activity",
+  moderate_activity: "Moderate",
   high_activity: "High activity",
 };
 
+const DISEASE_LABELS: Record<string, string> = {
+  rheumatoid_arthritis: "Rheumatoid Arthritis",
+  migraine: "Migraine",
+  gout: "Gout",
+  osteoarthritis: "Osteoarthritis",
+  ulcerative_colitis: "Ulcerative Colitis",
+  asthma: "Asthma",
+};
+
 export function ClinicalCohortExplorer() {
+  const [selectedDisease, setSelectedDisease] = React.useState("rheumatoid_arthritis");
   const [patients, setPatients] = React.useState<PatientSummary[]>([]);
   const [analysis, setAnalysis] = React.useState<CohortAnalysis | null>(null);
   const [outcomes, setOutcomes] = React.useState<OutcomeAnalysis | null>(null);
+  const [comparison, setComparison] = React.useState<CohortAnalysis[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [view, setView] = React.useState<"single" | "compare">("single");
 
   const load = React.useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      // Ensure cohort is generated
-      await clinicalApi.generate(50).catch(() => {}); // ignore if already exists
-      const [p, a, o] = await Promise.all([
-        clinicalApi.listPatients(),
-        clinicalApi.analysis(),
-        clinicalApi.outcomes(),
+      // Ensure all cohorts are generated
+      for (const dk of Object.keys(DISEASE_LABELS)) {
+        await clinicalApi.generate(dk, 50).catch(() => {});
+      }
+      const [p, a, o, cmp] = await Promise.all([
+        clinicalApi.listPatients(selectedDisease),
+        clinicalApi.analysis(selectedDisease),
+        clinicalApi.outcomes(selectedDisease),
+        clinicalApi.compare(),
       ]);
       setPatients(p.patients);
       setAnalysis(a.analysis);
       setOutcomes(o);
+      setComparison(cmp.comparisons);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load clinical data");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedDisease]);
 
   React.useEffect(() => { load(); }, [load]);
 
-  const regenerate = async () => {
+  const switchDisease = async (dk: string) => {
+    setSelectedDisease(dk);
     setLoading(true);
     try {
-      await clinicalApi.generate(50);
-      // Need to force regenerate — call generate with force
-      const res = await fetch(`/api/clinical/generate?n=50&force=true&XTransformPort=3005`, {
-        method: "POST",
-        headers: { "x-api-key": "synthegy-demo-key" },
-      });
-      await res.json();
-      await load();
+      const [p, a, o] = await Promise.all([
+        clinicalApi.listPatients(dk),
+        clinicalApi.analysis(dk),
+        clinicalApi.outcomes(dk),
+      ]);
+      setPatients(p.patients);
+      setAnalysis(a.analysis);
+      setOutcomes(o);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Regenerate failed");
+      setError(e instanceof Error ? e.message : "Failed to load disease");
+    } finally {
       setLoading(false);
     }
   };
@@ -106,22 +129,51 @@ export function ClinicalCohortExplorer() {
                 Patient cohort explorer
               </div>
               <div className="text-[11px] text-muted-foreground">
-                50 synthetic RA patients · 30-year epidemiological basis · 5 outliers
+                300 synthetic patients · 6 diseases · 30-year epidemiological basis · 30 outliers
               </div>
             </div>
           </div>
-          <Button size="sm" variant="outline" onClick={regenerate} disabled={loading}>
+          <Button size="sm" variant="outline" onClick={load} disabled={loading}>
             <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-            Regenerate
+            Refresh
           </Button>
         </div>
 
         {/* Disclaimer */}
         <div className="mt-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-[11px] text-destructive">
           <AlertTriangle className="mr-1.5 inline h-3 w-3" />
-          ALL PATIENT DATA IS SYNTHETIC. No real patient data is used. This pipeline
-          is designed for development — when real data is available, swap the generator
-          for a CSV/DB import and the analysis stays identical.
+          ALL PATIENT DATA IS SYNTHETIC. No real patient data is used. Replace the
+          generator with a CSV/DB import when real data is available.
+        </div>
+
+        {/* View toggle + disease selector */}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <div className="flex rounded-md border border-border/60 bg-muted/20 p-0.5">
+            <button
+              onClick={() => setView("single")}
+              className={cn("rounded px-3 py-1 text-[11px] font-medium transition-colors", view === "single" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}
+            >
+              Single disease
+            </button>
+            <button
+              onClick={() => setView("compare")}
+              className={cn("rounded px-3 py-1 text-[11px] font-medium transition-colors", view === "compare" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}
+            >
+              <Globe className="mr-1 inline h-3 w-3" />
+              Cross-disease comparison
+            </button>
+          </div>
+          {view === "single" && (
+            <select
+              value={selectedDisease}
+              onChange={(e) => switchDisease(e.target.value)}
+              className="rounded-md border border-border bg-background px-3 py-1.5 text-[12px] text-foreground outline-none focus:border-primary"
+            >
+              {Object.entries(DISEASE_LABELS).map(([k, v]) => (
+                <option key={k} value={k}>{v}</option>
+              ))}
+            </select>
+          )}
         </div>
 
         {error && (
@@ -137,31 +189,94 @@ export function ClinicalCohortExplorer() {
           </div>
         )}
 
-        {!loading && analysis && outcomes && (
+        {/* === Cross-disease comparison view === */}
+        {!loading && view === "compare" && comparison.length > 0 && (
+          <div className="mt-4 space-y-4">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Cross-disease outcomes (300 patients across 6 diseases)
+            </div>
+
+            {/* Comparison bar chart */}
+            <div className="rounded-md border border-border/60 bg-background p-3">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                Remission rate by disease (%)
+              </div>
+              <div className="h-[220px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={comparison.map(c => ({ disease: (c.disease ?? "").slice(0, 15), remission: c.outcomes.remissionRate, lda: c.outcomes.ldaRate, biologicResponse: c.treatmentResponse.biologicAcr50Rate }))} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                    <XAxis dataKey="disease" stroke="var(--muted-foreground)" fontSize={10} tickLine={false} axisLine={false} angle={-20} textAnchor="end" height={50} />
+                    <YAxis stroke="var(--muted-foreground)" fontSize={10} tickLine={false} axisLine={false} unit="%" />
+                    <Tooltip contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 11 }} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <Bar dataKey="remission" name="Remission %" fill="var(--primary)" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="lda" name="Low activity %" fill="var(--chart-5)" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="biologicResponse" name="Biologic ACR50 %" fill="var(--accent)" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Comparison table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-[11px]">
+                <thead>
+                  <tr className="border-b border-border/60 text-left text-muted-foreground">
+                    <th className="py-1.5 pr-3">Disease</th>
+                    <th className="py-1.5 pr-3">Patients</th>
+                    <th className="py-1.5 pr-3">Female %</th>
+                    <th className="py-1.5 pr-3">Mean onset</th>
+                    <th className="py-1.5 pr-3">Remission %</th>
+                    <th className="py-1.5 pr-3">Biologic ACR50 %</th>
+                    <th className="py-1.5 pr-3">Serious AEs</th>
+                    <th className="py-1.5 pr-3">Outliers</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {comparison.map((c) => (
+                    <tr key={c.diseaseKey} className="border-b border-border/40 hover:bg-muted/20">
+                      <td className="py-1.5 pr-3 font-medium text-foreground">{c.disease}</td>
+                      <td className="py-1.5 pr-3 tabular-nums">{c.totalPatients}</td>
+                      <td className="py-1.5 pr-3 tabular-nums">{c.demographics.femalePct}%</td>
+                      <td className="py-1.5 pr-3 tabular-nums">{c.demographics.meanAgeAtOnset}</td>
+                      <td className="py-1.5 pr-3 tabular-nums text-primary">{c.outcomes.remissionRate}%</td>
+                      <td className="py-1.5 pr-3 tabular-nums">{c.treatmentResponse.biologicAcr50Rate}%</td>
+                      <td className="py-1.5 pr-3 tabular-nums">{c.adverseEvents.seriousAeCount}</td>
+                      <td className="py-1.5 pr-3 tabular-nums text-accent">{c.outliers}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* === Single disease view === */}
+        {!loading && view === "single" && analysis && outcomes && (
           <div className="mt-4 space-y-4">
             {/* KPI cards */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <KpiCard icon={<Users className="h-3.5 w-3.5" />} label="Patients" value={String(analysis.totalPatients)} sub={`${analysis.outliers} outliers`} />
               <KpiCard icon={<TrendingUp className="h-3.5 w-3.5" />} label="Remission rate" value={`${analysis.outcomes.remissionRate}%`} sub="at 24 months" />
-              <KpiCard icon={<Activity className="h-3.5 w-3.5" />} label="ACPA positive" value={`${analysis.biomarkers.acpaPositivePct}%`} sub="biomarker" />
+              <KpiCard icon={<Activity className="h-3.5 w-3.5" />} label="Mean onset" value={`${analysis.demographics.meanAgeAtOnset}y`} sub={`${analysis.demographics.femalePct}% female`} />
               <KpiCard icon={<Pill className="h-3.5 w-3.5" />} label="Biologic ACR50" value={`${analysis.treatmentResponse.biologicAcr50Rate}%`} sub={`${analysis.treatmentResponse.biologicTreatedCount} treated`} />
             </div>
 
-            {/* Outcome distribution chart */}
+            {/* Charts */}
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="rounded-md border border-border/60 bg-background p-3">
                 <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Outcome distribution (24 months)
+                  Outcome distribution — {analysis.disease}
                 </div>
                 <div className="mt-2 h-[180px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
                         data={[
-                          { name: "Remission", value: analysis.outcomes.remissionRate, key: "remission" },
-                          { name: "Low activity", value: analysis.outcomes.ldaRate, key: "low_disease_activity" },
-                          { name: "Moderate", value: analysis.outcomes.moderateRate, key: "moderate_activity" },
-                          { name: "High activity", value: analysis.outcomes.highRate, key: "high_activity" },
+                          { name: "Remission", value: analysis.outcomes.remissionRate },
+                          { name: "Low activity", value: analysis.outcomes.ldaRate },
+                          { name: "Moderate", value: analysis.outcomes.moderateRate },
+                          { name: "High activity", value: analysis.outcomes.highRate },
                         ]}
                         dataKey="value"
                         nameKey="name"
@@ -170,14 +285,10 @@ export function ClinicalCohortExplorer() {
                         outerRadius={60}
                         label={(e: { name?: string; value?: number }) => `${e.name}: ${e.value}%`}
                       >
-                        {[
-                          { key: "remission", color: OUTCOME_COLORS.remission },
-                          { key: "low_disease_activity", color: OUTCOME_COLORS.low_disease_activity },
-                          { key: "moderate_activity", color: OUTCOME_COLORS.moderate_activity },
-                          { key: "high_activity", color: OUTCOME_COLORS.high_activity },
-                        ].map((entry) => (
-                          <Cell key={entry.key} fill={entry.color} />
-                        ))}
+                        <Cell fill={OUTCOME_COLORS.remission} />
+                        <Cell fill={OUTCOME_COLORS.low_disease_activity} />
+                        <Cell fill={OUTCOME_COLORS.moderate_activity} />
+                        <Cell fill={OUTCOME_COLORS.high_activity} />
                       </Pie>
                       <Tooltip />
                     </PieChart>
@@ -185,7 +296,6 @@ export function ClinicalCohortExplorer() {
                 </div>
               </div>
 
-              {/* Outcome by era chart */}
               <div className="rounded-md border border-border/60 bg-background p-3">
                 <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   Remission rate by diagnosis era
@@ -196,9 +306,7 @@ export function ClinicalCohortExplorer() {
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                       <XAxis dataKey="era" stroke="var(--muted-foreground)" fontSize={10} tickLine={false} axisLine={false} />
                       <YAxis stroke="var(--muted-foreground)" fontSize={10} tickLine={false} axisLine={false} unit="%" />
-                      <Tooltip
-                        contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 11 }}
-                      />
+                      <Tooltip contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 11 }} />
                       <Bar dataKey="remissionRate" name="Remission %" fill="var(--primary)" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
@@ -206,33 +314,10 @@ export function ClinicalCohortExplorer() {
               </div>
             </div>
 
-            {/* Biomarker correlation */}
-            <div className="rounded-md border border-border/60 bg-muted/20 p-3">
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Biomarker correlation with remission
-              </div>
-              <div className="mt-2 grid grid-cols-2 gap-3 text-[12px]">
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="border-primary/30 bg-primary/5 text-primary">ACPA+</Badge>
-                  <span className="text-foreground">
-                    {outcomes.biomarkerCorrelation.acpaPositive.remissionRate}% remission
-                    <span className="text-muted-foreground"> ({outcomes.biomarkerCorrelation.acpaPositive.count} pts)</span>
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="border-muted-foreground/30 bg-muted/20 text-muted-foreground">ACPA−</Badge>
-                  <span className="text-foreground">
-                    {outcomes.biomarkerCorrelation.acpaNegative.remissionRate}% remission
-                    <span className="text-muted-foreground"> ({outcomes.biomarkerCorrelation.acpaNegative.count} pts)</span>
-                  </span>
-                </div>
-              </div>
-            </div>
-
             {/* Patient table */}
             <div>
               <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Patient roster (click to expand)
+                Patient roster — {analysis.disease} (click to expand)
               </div>
               <div className="mt-2 max-h-[400px] space-y-1 overflow-y-auto scrollbar-slim">
                 {patients.map((p) => (
@@ -242,18 +327,20 @@ export function ClinicalCohortExplorer() {
             </div>
 
             {/* Outliers */}
-            <div className="rounded-md border border-accent/30 bg-accent/5 p-3">
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-accent">
-                Outlier patients ({outcomes.outliers.length})
+            {outcomes.outliers.length > 0 && (
+              <div className="rounded-md border border-accent/30 bg-accent/5 p-3">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-accent">
+                  Outlier patients ({outcomes.outliers.length})
+                </div>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {outcomes.outliers.map((o) => (
+                    <Badge key={o.patientId} variant="outline" className="border-accent/30 bg-accent/5 text-accent text-[10px]">
+                      {o.patientId} · {o.outlierType} · {OUTCOME_LABELS[o.outcome] ?? o.outcome}
+                    </Badge>
+                  ))}
+                </div>
               </div>
-              <div className="mt-1.5 flex flex-wrap gap-1.5">
-                {outcomes.outliers.map((o) => (
-                  <Badge key={o.patientId} variant="outline" className="border-accent/30 bg-accent/5 text-accent text-[10px]">
-                    {o.patientId} · {o.outlierType} · {OUTCOME_LABELS[o.outcome] ?? o.outcome}
-                  </Badge>
-                ))}
-              </div>
-            </div>
+            )}
           </div>
         )}
       </CardContent>
@@ -273,7 +360,7 @@ function KpiCard({ icon, label, value, sub }: { icon: React.ReactNode; label: st
 
 function PatientRow({ patient }: { patient: PatientSummary }) {
   const [expanded, setExpanded] = React.useState(false);
-  const [fullPatient, setFullPatient] = React.useState<PatientFull | null>(null);
+  const [fullPatient, setFullPatient] = React.useState<any | null>(null);
   const [loading, setLoading] = React.useState(false);
 
   const loadFull = async () => {
@@ -294,7 +381,7 @@ function PatientRow({ patient }: { patient: PatientSummary }) {
         <span className="font-mono text-[11px] text-muted-foreground">{patient.patientId}</span>
         <span className="text-[11px] text-muted-foreground">Dx {patient.diagnosisYear}</span>
         <span className="text-[11px] text-muted-foreground">{patient.sex}</span>
-        <span className="text-[11px] text-muted-foreground">age {patient.ageAtOnset}</span>
+        <span className="text-[11px] text-muted-foreground">onset {patient.ageAtOnset}</span>
         <span className="text-[11px] text-muted-foreground">{patient.treatmentCount} tx</span>
         <div className="ml-auto flex items-center gap-2">
           {patient.isOutlier && (
@@ -306,26 +393,32 @@ function PatientRow({ patient }: { patient: PatientSummary }) {
             <span className="inline-block h-2 w-2 rounded-full" style={{ background: outcomeColor }} />
             {OUTCOME_LABELS[patient.outcome24m] ?? patient.outcome24m}
           </span>
-          <span className="font-mono text-[10px] tabular-nums text-muted-foreground">DAS28 {patient.das28_24m}</span>
+          <span className="font-mono text-[10px] tabular-nums text-muted-foreground">{patient.primaryMetric}: {patient.score24m}</span>
         </div>
       </button>
       {expanded && fullPatient && (
         <div className="border-t border-border/60 bg-muted/10 p-3">
           <div className="grid grid-cols-2 gap-3 text-[11px] sm:grid-cols-4">
-            <div><span className="text-muted-foreground">ACPA:</span> <span className={fullPatient.biomarkers.acpaPositive ? "text-primary" : "text-muted-foreground"}>{fullPatient.biomarkers.acpaPositive ? "Positive" : "Negative"}</span></div>
-            <div><span className="text-muted-foreground">RF:</span> <span className={fullPatient.biomarkers.rfPositive ? "text-primary" : "text-muted-foreground"}>{fullPatient.biomarkers.rfPositive ? "Positive" : "Negative"}</span></div>
-            <div><span className="text-muted-foreground">CRP at dx:</span> <span className="text-foreground">{fullPatient.biomarkers.crpAtDiagnosis} mg/L</span></div>
-            <div><span className="text-muted-foreground">DAS28 at dx:</span> <span className="text-foreground">{fullPatient.biomarkers.das28AtDiagnosis}</span></div>
-            <div><span className="text-muted-foreground">Tender joints:</span> <span className="text-foreground">{fullPatient.biomarkers.tenderJointCount}</span></div>
-            <div><span className="text-muted-foreground">Swollen joints:</span> <span className="text-foreground">{fullPatient.biomarkers.swollenJointCount}</span></div>
+            <div><span className="text-muted-foreground">Target:</span> <span className="text-foreground">{fullPatient.target}</span></div>
+            <div><span className="text-muted-foreground">ICD-10:</span> <span className="font-mono text-foreground">{fullPatient.icd10}</span></div>
             <div><span className="text-muted-foreground">BMI:</span> <span className="text-foreground">{fullPatient.bmi}</span></div>
             <div><span className="text-muted-foreground">Smoker:</span> <span className={fullPatient.smoker ? "text-destructive" : "text-muted-foreground"}>{fullPatient.smoker ? "Yes" : "No"}</span></div>
           </div>
 
+          {/* Biomarkers */}
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {Object.entries(fullPatient.biomarkers).map(([k, v]) => (
+              <Badge key={k} variant="outline" className={typeof v === "boolean" && v ? "border-primary/30 bg-primary/5 text-primary text-[9px]" : "text-[9px]"}>
+                {k}: {typeof v === "boolean" ? (v ? "+" : "−") : String(v)}
+              </Badge>
+            ))}
+          </div>
+
+          {/* Treatment sequence */}
           <div className="mt-3">
             <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Treatment sequence</div>
             <div className="mt-1 space-y-1">
-              {fullPatient.treatments.map((t, i) => (
+              {fullPatient.treatments.map((t: any, i: number) => (
                 <div key={i} className="flex items-center gap-2 rounded border border-border/60 bg-background px-2 py-1 text-[11px]">
                   <span className="font-mono text-muted-foreground">M{t.startMonth}</span>
                   <span className="font-medium text-foreground">{t.drug}</span>
@@ -342,7 +435,7 @@ function PatientRow({ patient }: { patient: PatientSummary }) {
 
           {fullPatient.adverseEvents.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1">
-              {fullPatient.adverseEvents.map((ae, i) => (
+              {fullPatient.adverseEvents.map((ae: string, i: number) => (
                 <Badge key={i} variant="outline" className="border-destructive/30 bg-destructive/5 text-destructive text-[9px]">{ae}</Badge>
               ))}
             </div>

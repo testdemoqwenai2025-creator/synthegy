@@ -67,9 +67,9 @@ const BIO_FEATURES = [
 
 const CLINICAL_FEATURES = [
   { icon: Server, label: "Bun + Python", note: "port 3005" },
-  { icon: Users, label: "Synthetic cohort", note: "50 RA patients · 30-year epi basis" },
-  { icon: Activity, label: "Cohort analysis", note: "outcomes, biomarkers, response rates" },
-  { icon: TrendingUp, label: "Outcome trends", note: "by diagnosis era (1995-2025)" },
+  { icon: Users, label: "6 disease cohorts", note: "300 synthetic patients · RA, migraine, gout, OA, UC, asthma" },
+  { icon: Activity, label: "Cohort analysis", note: "outcomes, biomarkers, response rates, cross-disease" },
+  { icon: TrendingUp, label: "Outcome trends", note: "by diagnosis era (1995-2025) · 30 outliers" },
 ];
 
 export function Architecture() {
