@@ -18,6 +18,23 @@ const Body = z.object({
     .optional()
     .default("retrosynthesis"),
   sessionId: z.string().max(100).optional(),
+  enrichedContext: z
+    .object({
+      source: z.literal("pubchem"),
+      cid: z.number().optional(),
+      molecularFormula: z.string().optional(),
+      molecularWeight: z.string().optional(),
+      canonicalSMILES: z.string().optional(),
+      iupacName: z.string().optional(),
+      xLogP: z.number().optional(),
+      tpsa: z.number().optional(),
+      rotatableBondCount: z.number().optional(),
+      heavyAtomCount: z.number().optional(),
+      complexity: z.number().optional(),
+      synonyms: z.array(z.string()).max(20).optional(),
+      description: z.string().max(2000).optional(),
+    })
+    .optional(),
 });
 
 evaluate.post("/", async (c) => {
@@ -52,6 +69,7 @@ evaluate.post("/", async (c) => {
       target: req.target,
       smiles: req.smiles,
       instruction: req.instruction,
+      enrichedContext: req.enrichedContext,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "LLM call failed";

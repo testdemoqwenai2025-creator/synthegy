@@ -24,11 +24,17 @@ import {
 import { cn } from "@/lib/utils";
 import { LiveEvaluator } from "./live-evaluator";
 import { SessionHistory } from "./session-history";
+import { MoleculeExplorer } from "./molecule-explorer";
+import type { MoleculeRecord } from "@/lib/synthegy/molecule-api";
 
 export function Demo() {
   // refreshKey bumps every time a run is persisted, so the SessionHistory
   // panel re-fetches from the backend.
   const [historyRefreshKey, setHistoryRefreshKey] = React.useState(0);
+  // When the chemist picks a molecule in the explorer, we enrich the
+  // evaluator prompt with real PubChem data.
+  const [enrichedMolecule, setEnrichedMolecule] =
+    React.useState<{ name: string; record: MoleculeRecord } | null>(null);
 
   return (
     <section id="demo" className="relative scroll-mt-24 border-y border-border/40 bg-muted/15 py-20">
@@ -44,9 +50,10 @@ export function Demo() {
             </h2>
             <p className="mt-4 text-balance text-base leading-relaxed text-muted-foreground">
               Each scenario below replays a real agent pipeline: orchestration, translation, and LLM
-              reasoning. The fourth tab is a live evaluator — type your own natural-language
-              instruction and the Strategic Evaluator will score a candidate route against it. Every
-              run is persisted to your session via the Synthegy backend.
+              reasoning. The fourth tab is a live evaluator — search any molecule on PubChem,
+              enrich the prompt with its real molecular data, then run the Strategic Evaluator
+              against your own natural-language instruction. Every run is persisted to your
+              session via the Synthegy backend.
             </p>
           </div>
         </div>
@@ -82,7 +89,11 @@ export function Demo() {
 
           <TabsContent value="live" className="mt-6">
             <div className="space-y-6">
-              <LiveEvaluator onRunPersisted={() => setHistoryRefreshKey((k) => k + 1)} />
+              <MoleculeExplorer onUseInEvaluator={(m) => setEnrichedMolecule({ name: m.properties.iupacName ?? "molecule", record: m })} />
+              <LiveEvaluator
+                onRunPersisted={() => setHistoryRefreshKey((k) => k + 1)}
+                enrichedMolecule={enrichedMolecule}
+              />
               <SessionHistory refreshKey={historyRefreshKey} />
             </div>
           </TabsContent>

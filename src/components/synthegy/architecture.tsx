@@ -10,6 +10,7 @@ import {
   Database,
   Cpu,
   Lock,
+  Atom,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +36,13 @@ const BACKEND_FEATURES = [
   { icon: ScrollText, label: "REST: /api/* ", note: "scenarios, sessions, evaluate" },
 ];
 
+const MOLECULE_FEATURES = [
+  { icon: Server, label: "Bun + Hono", note: "port 3002" },
+  { icon: Database, label: "SQLite cache", note: "30-day TTL on properties" },
+  { icon: Atom, label: "PubChem PUG REST", note: "119M+ compounds" },
+  { icon: ScrollText, label: "REST: /api/molecule/*", note: "name, cid, smiles, image, search, similarity" },
+];
+
 export function Architecture() {
   return (
     <section
@@ -44,20 +52,21 @@ export function Architecture() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="max-w-3xl">
           <Badge variant="outline" className="border-chart-3/30 bg-chart-3/5 text-chart-3">
-            Three-tier architecture
+            Four-tier architecture
           </Badge>
           <h2 className="mt-4 text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
-            Sound frontend, middleware, and backend — fully wired
+            Frontend, middleware, backend — and a molecular intelligence layer
           </h2>
           <p className="mt-4 text-balance text-base leading-relaxed text-muted-foreground">
             Synthegy isn&apos;t a slide deck. The platform you&apos;re using runs on a real
-            three-tier stack: a Next.js frontend, a Hono API gateway with layered middleware, and a
-            SQLite-backed service that hosts the LLM Strategic Evaluator. Every run is persisted and
-            auditable.
+            four-tier stack: a Next.js frontend, a Hono API gateway with layered middleware, a
+            SQLite-backed service that hosts the LLM Strategic Evaluator, and a PubChem-backed
+            molecule microservice that enriches the evaluator with real compound data from the
+            public 119M-compound database.
           </p>
         </div>
 
-        <div className="mt-10 grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {/* Frontend tier */}
           <TierCard
             tier="01"
@@ -90,6 +99,20 @@ export function Architecture() {
             icon={Server}
             accent="chart3"
             features={BACKEND_FEATURES.map((f) => ({
+              label: f.label,
+              note: f.note,
+              icon: f.icon,
+            }))}
+          />
+
+          {/* Molecule tier */}
+          <TierCard
+            tier="04"
+            title="Molecule"
+            subtitle="Bun + Hono · port 3002"
+            icon={Atom}
+            accent="primary"
+            features={MOLECULE_FEATURES.map((f) => ({
               label: f.label,
               note: f.note,
               icon: f.icon,

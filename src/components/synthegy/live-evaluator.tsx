@@ -12,6 +12,7 @@ import {
   Lightbulb,
   Database,
   Clock,
+  Atom,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { api, type EvaluateResponse } from "@/lib/synthegy/api";
 import { useSynthegySession } from "@/hooks/use-synthegy-session";
+import type { MoleculeRecord } from "@/lib/synthegy/molecule-api";
 
 const PRESET_INSTRUCTIONS = [
   "Avoid unnecessary protecting groups. Prefer convergent routes.",
@@ -28,9 +30,20 @@ const PRESET_INSTRUCTIONS = [
   "Prefer atom-economical steps. Avoid heavy metals.",
 ];
 
+interface EnrichedMolecule {
+  name: string;
+  record: MoleculeRecord;
+}
+
 // Callback fired when a run is persisted — used by the parent to refresh
 // the session-history panel.
-export function LiveEvaluator({ onRunPersisted }: { onRunPersisted?: () => void }) {
+export function LiveEvaluator({
+  onRunPersisted,
+  enrichedMolecule,
+}: {
+  onRunPersisted?: () => void;
+  enrichedMolecule?: EnrichedMolecule | null;
+}) {
   const [instruction, setInstruction] = React.useState(PRESET_INSTRUCTIONS[0]);
   const [target, setTarget] = React.useState("Atovaquone (antimalarial)");
   const [smiles, setSmiles] = React.useState("O=C(O)C1=CC(O)=C(C2=CC=CC=C2Cl)C(O)=C1");
@@ -39,6 +52,15 @@ export function LiveEvaluator({ onRunPersisted }: { onRunPersisted?: () => void 
   const [error, setError] = React.useState<string | null>(null);
 
   const { sessionId, label, ensureSession } = useSynthegySession();
+
+  // When an enriched molecule is supplied (from the MoleculeExplorer),
+  // sync the target + SMILES fields so the next evaluator run uses them.
+  React.useEffect(() => {
+    if (enrichedMolecule) {
+      setTarget(enrichedMolecule.record.properties.iupacName ?? enrichedMolecule.name);
+      setSmiles(enrichedMolecule.record.properties.canonicalSMILES);
+    }
+  }, [enrichedMolecule]);
 
   const run = async () => {
     if (!instruction.trim()) {
@@ -51,12 +73,31 @@ export function LiveEvaluator({ onRunPersisted }: { onRunPersisted?: () => void 
     try {
       // Make sure we have a session to attach the run to.
       const sess = await ensureSession();
+      // Build enrichedContext if we have a PubChem molecule.
+      const enrichedContext = enrichedMolecule
+        ? {
+            source: "pubchem" as const,
+            cid: enrichedMolecule.record.properties.cid,
+            molecularFormula: enrichedMolecule.record.properties.molecularFormula,
+            molecularWeight: enrichedMolecule.record.properties.molecularWeight,
+            canonicalSMILES: enrichedMolecule.record.properties.canonicalSMILES,
+            iupacName: enrichedMolecule.record.properties.iupacName,
+            xLogP: enrichedMolecule.record.properties.xLogP,
+            tpsa: enrichedMolecule.record.properties.tpsa,
+            rotatableBondCount: enrichedMolecule.record.properties.rotatableBondCount,
+            heavyAtomCount: enrichedMolecule.record.properties.heavyAtomCount,
+            complexity: enrichedMolecule.record.properties.complexity,
+            synonyms: enrichedMolecule.record.synonyms.slice(0, 12),
+            description: enrichedMolecule.record.descriptions[0]?.description,
+          }
+        : undefined;
       const res = await api.evaluate({
         target,
         smiles,
         instruction,
         workflowId: "retrosynthesis",
         sessionId: sess?.id,
+        enrichedContext,
       });
       setResponse(res);
       onRunPersisted?.();
@@ -112,8 +153,14 @@ export function LiveEvaluator({ onRunPersisted }: { onRunPersisted?: () => void 
             </div>
 
             <div>
-              <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                Target molecule
+              <label className="flex items-center justify-between text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                <span>Target molecule</span>
+                {enrichedMolecule && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-chart-3/10 px-2 py-0.5 text-[10px] font-medium text-chart-3 ring-1 ring-chart-3/30">
+                    <Atom className="h-2.5 w-2.5" />
+                    PubChem-enriched · CID {enrichedMolecule.record.properties.cid}
+                  </span>
+                )}
               </label>
               <input
                 value={target}

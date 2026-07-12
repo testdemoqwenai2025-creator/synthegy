@@ -162,6 +162,21 @@ export const api = {
     instruction: string;
     workflowId?: "retrosynthesis" | "mechanism" | "alignment";
     sessionId?: string;
+    enrichedContext?: {
+      source: "pubchem";
+      cid?: number;
+      molecularFormula?: string;
+      molecularWeight?: string;
+      canonicalSMILES?: string;
+      iupacName?: string;
+      xLogP?: number;
+      tpsa?: number;
+      rotatableBondCount?: number;
+      heavyAtomCount?: number;
+      complexity?: number;
+      synonyms?: string[];
+      description?: string;
+    };
   }) =>
     apiFetch<EvaluateResponse>("/api/evaluate", {
       method: "POST",

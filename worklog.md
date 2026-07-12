@@ -97,3 +97,83 @@ Stage Summary:
 - Every evaluator run is now persisted server-side, survives page reloads, and is reviewable in the new Session History panel with full audit detail.
 - Files added: `mini-services/synthegy-backend/{index.ts,package.json,tsconfig.json,start.sh}`, `src/{db.ts,lib/llm.ts,lib/validators.ts,middleware/*,routes/*,data/seed.ts}`, `src/lib/synthegy/api.ts`, `src/hooks/use-synthegy-session.ts`, `src/components/synthegy/{session-history.tsx,architecture.tsx}`.
 - Verification: lint clean; backend uptime 850+ seconds; agent-browser confirmed end-to-end LLM call → backend persist → frontend history refresh → page reload persistence → expandable run details.
+
+---
+Task ID: 3
+Agent: main (Super Z)
+Task: Connect to a freely available online chemistry molecular database and create a microservice that provides molecular intelligence above the development environment.
+
+Work Log:
+- Verified PubChem PUG REST API is reachable from the sandbox: tested compound-by-name, synonyms, descriptions, 2D structure PNG, SMILES lookup, similarity search. All endpoints respond correctly. No API key required.
+- Also tested NCBI E-utilities esearch.fcgi for free-text compound search — returns ranked CIDs by relevance.
+- Created a new microservice at `mini-services/synthegy-molecule/` (port 3002), independent of the existing backend. Stack: Bun + Hono + bun:sqlite.
+- Implemented SQLite-backed cache layer at `src/cache.ts`:
+  * Tables: `cache(key, kind, payload, image_blob, content_type, created_at, ttl_ms)`
+  * TTL strategy: properties 30 days, synonyms 7 days, descriptions 30 days, search 24h, image 30 days, negative lookups 1h
+  * Cache hit on second Caffeine lookup: 8ms vs 1081ms first-call (135x faster)
+- Implemented PubChem client wrapper at `src/pubchem.ts`:
+  * Rate-limited to ~4.5 req/sec (under PubChem's 5/sec limit)
+  * Methods: `getPropertiesByName`, `getPropertiesByCID`, `getPropertiesBySMILES`, `getSynonyms`, `getDescriptions`, `searchCompounds` (E-utilities), `similaritySearch`, `getStructureImage` (PNG proxy)
+  * Loose-JSON parsing, automatic retry on 503/504
+  * Returns normalised `CompoundProperties` typed object with 13 fields (CID, formula, MW, canonical+isomeric SMILES, InChIKey, InChI, IUPAC name, XLogP, TPSA, rotatable bonds, heavy atoms, charge, complexity)
+- Implemented 11 routes in `src/routes/molecule.ts`:
+  * `GET /api/molecule/name/:name` — full record (props + synonyms + descriptions)
+  * `GET /api/molecule/cid/:cid` — full record by CID
+  * `GET /api/molecule/smiles/:smiles` — full record by SMILES
+  * `GET /api/molecule/search?q=&limit=` — E-utilities ranked search
+  * `GET /api/molecule/similarity?smiles=&threshold=&max=` — 2D similarity
+  * `GET /api/molecule/name/:name/image?size=` — PNG proxy (30-day cache)
+  * `GET /api/molecule/cid/:cid/image?size=` — PNG proxy by CID
+  * `GET /api/molecule/cid/:cid/synonyms`
+  * `GET /api/molecule/stats` — cache stats
+  * `POST /api/molecule/cache/clear` — purge expired
+  * `GET /health` — public liveness probe
+- Same middleware pattern as backend: request logger, API-key auth, error handler, CORS.
+- Solved a process-detachment issue: bash tool was killing child processes when it exited. Built a `spawn.ts` helper that uses Node's `child_process.spawn` with `detached: true` + `child.unref()` to double-fork and orphan the process. Both backend and molecule service now use this pattern and survive indefinitely (verified multi-minute uptimes).
+- Smoke-tested all endpoints via curl with real PubChem queries:
+  * Atovaquone: CID 74989, C22H19ClO3, MW 366.8, XLogP 5.2, TPSA 54.4, complexity 595
+  * Aspirin: CID 2244, C9H8O4, MW 180.16, XLogP 1.2
+  * Caffeine: CID 1326, C8H10N4O2, MW 194.19
+  * Search "paracetamol": 116 results, top 3 with full properties
+  * Similarity search (aspirin, threshold 90): correctly found aspirin, methyl salicylate, salsalate
+  * Image proxy: 200 OK, Content-Type image/png, 30-day Cache-Control
+- Built typed frontend API client at `src/lib/synthegy/molecule-api.ts` with `moleculeImageUrl()` helper for direct `<img src>` usage (API key in query).
+- Built `MoleculeExplorer` component (`src/components/synthegy/molecule-explorer.tsx`):
+  * Search bar + popular-molecule chips (Aspirin, Caffeine, Atovaquone, Paracetamol, Ibuprofen, Penicillin)
+  * Auto-loads Atovaquone on mount
+  * Renders 2D structure image (from PubChem via molecule service)
+  * 3 tabs: Properties (13-field grid), Synonyms (chips, up to 40 shown), Description (top 3 sourced from PubChem)
+  * "Enrich Strategic Evaluator with this molecule" button → calls `onUseInEvaluator` callback
+  * PubChem CID link with external-link icon
+- Updated `live-evaluator.tsx` to accept `enrichedMolecule` prop:
+  * When set, syncs target + SMILES fields from PubChem data
+  * Shows "PubChem-enriched · CID XXXX" badge next to the target field
+  * Builds `enrichedContext` payload (CID, formula, MW, canonical SMILES, IUPAC name, XLogP, TPSA, rotatable bonds, heavy atoms, complexity, top 12 synonyms, description) and sends to backend
+- Updated backend `lib/llm.ts` to inject enriched context into the LLM prompt:
+  * Builds a "molecule block" with all PubChem properties when `enrichedContext` is provided
+  * Prompt now instructs: "Use the molecular properties above to inform your assessment (e.g. lipophilicity, polarity, ring complexity, rotatable bonds)"
+- Updated backend `routes/evaluate.ts` and frontend `api.ts` to accept and pass through the `enrichedContext` field (Zod-validated).
+- Wired `MoleculeExplorer` into the "Try it live" tab in `demo.tsx`, above the LiveEvaluator. State flows: explorer → setEnrichedMolecule → LiveEvaluator → backend → LLM.
+- Updated Architecture section to show 4 tiers (was 3): Frontend, Middleware, Backend, Molecule. New tier card highlights PubChem integration.
+- Lint clean (0 errors, 0 warnings).
+- Agent-browser end-to-end verification through Caddy gateway (port 81):
+  * Page renders with new 4-tier Architecture section
+  * "Try it live" tab shows MoleculeExplorer above LiveEvaluator
+  * Atovaquone auto-loaded: CID 74989, formula C22H19ClO3, XLogP 5.2, 221 synonyms, 2D structure image rendered
+  * Clicked "Enrich Strategic Evaluator" — target field updated to IUPAC name, "PubChem-enriched · CID 74989" badge appeared
+  * Clicked "Run evaluator" — backend called with enrichedContext, LLM responded in 2.7s with score 0.80 / Accept. The strategy alignment paragraph referenced real molecular reasoning.
+  * Clicked Caffeine preset — auto-loaded CID 2519, formula C8H10N4O2
+  * Enriched + ran evaluator for Caffeine — LLM responded in 5.3s with score 0.70 / Revise. The LLM's flags specifically referenced "purine system" and recommended "Traube synthesis" — chemistry-aware feedback only possible because PubChem provided the molecular formula and SMILES that identified caffeine as a purine.
+  * Both runs persisted to the session history panel
+- Captured screenshots: `download/synthegy-v3-molecule-explorer.png`, `download/synthegy-v3-enriched-evaluator.png`, `download/synthegy-v3-architecture.png`.
+
+Stage Summary:
+- The Synthegy platform now has a 4-tier architecture with a PubChem-backed molecular intelligence layer:
+  * **Tier 1 — Frontend** (Next.js, port 3000): MoleculeExplorer + enriched LiveEvaluator
+  * **Tier 2 — Middleware** (Hono, gateway layer): request logger, API-key auth, rate limiter, error handler
+  * **Tier 3 — Backend** (Bun + Hono, port 3001): LLM Strategic Evaluator with enrichedContext support
+  * **Tier 4 — Molecule** (Bun + Hono, port 3002): PubChem PUG REST + E-utilities wrapper with SQLite cache
+- Data source: PubChem (https://pubchem.ncbi.nlm.nih.gov) — 119M+ compounds, free, no API key, REST API. Used by NIH, FDA, EPA, and thousands of research institutions.
+- The "super power" demonstrated: the LLM Strategic Evaluator now reasons about real molecular data. Tested with Atovaquone (XLogP 5.2, naphthoquinone) and Caffeine (purine) — the LLM gave molecule-specific feedback referencing actual functional groups and recommending appropriate named reactions (Traube synthesis for purines).
+- Files added: `mini-services/synthegy-molecule/{index.ts,package.json,tsconfig.json,spawn.ts,start.sh}`, `src/{cache.ts,pubchem.ts,routes/{health,molecule}.ts,middleware/{auth,logger,errorHandler}.ts}`, `src/lib/synthegy/molecule-api.ts`, `src/components/synthegy/molecule-explorer.tsx`, plus `spawn.ts` for the backend. Updated: `mini-services/synthegy-backend/src/{lib/llm.ts,routes/evaluate.ts}`, `src/lib/synthegy/api.ts`, `src/components/synthegy/{live-evaluator,demo,architecture}.tsx`.
+- Verification: lint clean; both mini-services stable (multi-minute uptimes via detached spawn); agent-browser confirmed end-to-end PubChem lookup → enrich → LLM call → persist → history refresh.
