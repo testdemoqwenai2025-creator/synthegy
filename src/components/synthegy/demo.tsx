@@ -31,6 +31,7 @@ import { ReactionExplorer } from "./reaction-explorer";
 import { CompoundIntelligence } from "./compound-intelligence";
 import { BioIntelligence } from "./bio-intelligence";
 import { FeedbackPanel } from "./feedback-panel";
+import { ClinicalCohortExplorer } from "./clinical-cohort-explorer";
 import type { MoleculeRecord } from "@/lib/synthegy/molecule-api";
 import type { CollectionItemInput } from "@/lib/synthegy/api";
 
@@ -136,6 +137,7 @@ export function Demo() {
               />
               <SessionHistory refreshKey={historyRefreshKey} />
               <FeedbackPanel refreshKey={feedbackRefreshKey} />
+              <ClinicalCohortExplorer />
             </div>
           </TabsContent>
         </Tabs>

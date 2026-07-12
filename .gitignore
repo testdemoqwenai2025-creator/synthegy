@@ -75,3 +75,6 @@ mini-services/synthegy-ord/synthegy-ord.db*
 
 # Bio service DB files
 mini-services/synthegy-bio/synthegy-bio.db*
+
+# Clinical service DB files
+mini-services/synthegy-clinical/synthegy-clinical.db*

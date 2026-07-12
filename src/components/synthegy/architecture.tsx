@@ -17,6 +17,8 @@ import {
   Microscope,
   Network,
   FileText,
+  Users,
+  TrendingUp,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -63,6 +65,13 @@ const BIO_FEATURES = [
   { icon: FileText, label: "Google Patents", note: "100M+ patents · free search" },
 ];
 
+const CLINICAL_FEATURES = [
+  { icon: Server, label: "Bun + Python", note: "port 3005" },
+  { icon: Users, label: "Synthetic cohort", note: "50 RA patients · 30-year epi basis" },
+  { icon: Activity, label: "Cohort analysis", note: "outcomes, biomarkers, response rates" },
+  { icon: TrendingUp, label: "Outcome trends", note: "by diagnosis era (1995-2025)" },
+];
+
 export function Architecture() {
   return (
     <section
@@ -72,23 +81,23 @@ export function Architecture() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="max-w-3xl">
           <Badge variant="outline" className="border-chart-3/30 bg-chart-3/5 text-chart-3">
-            Six-tier architecture
+            Seven-tier architecture
           </Badge>
           <h2 className="mt-4 text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
-            Six tiers, eight free public databases, one reasoning platform
+            Seven tiers, ten data sources, one reasoning platform — bench to bedside
           </h2>
           <p className="mt-4 text-balance text-base leading-relaxed text-muted-foreground">
-            Synthegy now spans six tiers backed by eight free public databases.
-            Four Bun/Hono microservices power the platform: the LLM Strategic Evaluator
-            with active-learning feedback loop (port 3001), a PubChem + ChEMBL molecule
-            service (port 3002), an experimental-data service wrapping ORD + RDKit ADMET
-            + Europe PMC (port 3003), and a biological-intelligence service connecting
-            RCSB PDB structures, KEGG pathways, OpenTargets diseases, and Google Patents
-            (port 3004).
+            Synthegy now spans seven tiers: the LLM Strategic Evaluator with active-learning
+            feedback loop (port 3001), a PubChem + ChEMBL molecule service (port 3002), an
+            experimental-data service wrapping ORD + RDKit ADMET + Europe PMC (port 3003), a
+            biological-intelligence service connecting RCSB PDB + KEGG + OpenTargets + Google
+            Patents (port 3004), and a clinical cohort service with 50 synthetic RA patients
+            on a 30-year epidemiological basis (port 3005) — ready to swap for real patient
+            data via CSV import.
           </p>
         </div>
 
-        <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
           {/* Frontend tier */}
           <TierCard
             tier="01"
@@ -163,6 +172,20 @@ export function Architecture() {
             icon={Microscope}
             accent="chart3"
             features={BIO_FEATURES.map((f) => ({
+              label: f.label,
+              note: f.note,
+              icon: f.icon,
+            }))}
+          />
+
+          {/* Clinical cohort tier */}
+          <TierCard
+            tier="07"
+            title="Clinical"
+            subtitle="Bun + Python · port 3005"
+            icon={Users}
+            accent="primary"
+            features={CLINICAL_FEATURES.map((f) => ({
               label: f.label,
               note: f.note,
               icon: f.icon,
