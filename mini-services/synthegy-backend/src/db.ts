@@ -91,6 +91,19 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_items_collection ON collection_items(collection_id);
   CREATE INDEX IF NOT EXISTS idx_items_cid ON collection_items(cid);
 
+  CREATE TABLE IF NOT EXISTS feedback (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+    signal TEXT NOT NULL,             -- 'accept' | 'revise' | 'reject'
+    chemist_id TEXT,
+    note TEXT,
+    created_at INTEGER NOT NULL,
+    UNIQUE(run_id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_feedback_run ON feedback(run_id);
+  CREATE INDEX IF NOT EXISTS idx_feedback_signal ON feedback(signal);
+
   CREATE TABLE IF NOT EXISTS rate_limits (
     key TEXT PRIMARY KEY,
     tokens REAL NOT NULL,

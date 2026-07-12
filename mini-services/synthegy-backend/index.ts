@@ -33,6 +33,7 @@ import { useCases } from "./src/routes/useCases.ts";
 import { sessions } from "./src/routes/sessions.ts";
 import { evaluate } from "./src/routes/evaluate.ts";
 import { collections } from "./src/routes/collections.ts";
+import { feedback } from "./src/routes/feedback.ts";
 
 import "./src/db.ts"; // initialise schema + seed
 
@@ -59,6 +60,7 @@ app.route("/api/use-cases", useCases);
 app.route("/api/sessions", sessions);
 app.route("/api/evaluate", evaluate);
 app.route("/api/collections", collections);
+app.route("/api/feedback", feedback);
 
 // 404 for anything else
 app.notFound((c) =>

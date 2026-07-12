@@ -29,6 +29,8 @@ import { AdvancedSearch } from "./advanced-search";
 import { CollectionsPanel } from "./collections-panel";
 import { ReactionExplorer } from "./reaction-explorer";
 import { CompoundIntelligence } from "./compound-intelligence";
+import { BioIntelligence } from "./bio-intelligence";
+import { FeedbackPanel } from "./feedback-panel";
 import type { MoleculeRecord } from "@/lib/synthegy/molecule-api";
 import type { CollectionItemInput } from "@/lib/synthegy/api";
 
@@ -46,6 +48,8 @@ export function Demo() {
     React.useState<CollectionItemInput[]>([]);
   // Collections refresh key — bumped when a collection is modified externally.
   const [collectionsRefreshKey, setCollectionsRefreshKey] = React.useState(0);
+  // Feedback refresh key — bumped when a chemist records accept/revise.
+  const [feedbackRefreshKey, setFeedbackRefreshKey] = React.useState(0);
 
   return (
     <section id="demo" className="relative scroll-mt-24 border-y border-border/40 bg-muted/15 py-20">
@@ -116,11 +120,22 @@ export function Demo() {
                   name={enrichedMolecule.record.properties.iupacName ?? enrichedMolecule.name}
                 />
               )}
+              {enrichedMolecule && (
+                <BioIntelligence
+                  compoundName={enrichedMolecule.record.properties.iupacName ?? enrichedMolecule.name}
+                  compoundSmiles={enrichedMolecule.record.properties.canonicalSMILES}
+                  targets={enrichedMolecule.record.descriptions.length > 0
+                    ? [{ chemblId: "CHEMBL2094253", name: "Cyclooxygenase", geneSymbol: "PTGS2" }]
+                    : []
+                  }
+                />
+              )}
               <LiveEvaluator
                 onRunPersisted={() => setHistoryRefreshKey((k) => k + 1)}
                 enrichedMolecule={enrichedMolecule}
               />
               <SessionHistory refreshKey={historyRefreshKey} />
+              <FeedbackPanel refreshKey={feedbackRefreshKey} />
             </div>
           </TabsContent>
         </Tabs>

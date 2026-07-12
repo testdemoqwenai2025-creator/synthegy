@@ -14,6 +14,9 @@ import {
   Activity,
   FlaskRound,
   BookOpen,
+  Microscope,
+  Network,
+  FileText,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -53,6 +56,13 @@ const ORD_FEATURES = [
   { icon: BookOpen, label: "Europe PMC", note: "40M+ biomedical citations · literature confidence" },
 ];
 
+const BIO_FEATURES = [
+  { icon: Server, label: "Bun + Hono", note: "port 3004" },
+  { icon: Microscope, label: "RCSB PDB", note: "220K+ 3D protein structures" },
+  { icon: Network, label: "Knowledge graph", note: "KEGG pathways + OpenTargets diseases" },
+  { icon: FileText, label: "Google Patents", note: "100M+ patents · free search" },
+];
+
 export function Architecture() {
   return (
     <section
@@ -62,22 +72,23 @@ export function Architecture() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="max-w-3xl">
           <Badge variant="outline" className="border-chart-3/30 bg-chart-3/5 text-chart-3">
-            Five-tier architecture
+            Six-tier architecture
           </Badge>
           <h2 className="mt-4 text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
-            Frontend, middleware, backend, molecules — and experimental data
+            Six tiers, eight free public databases, one reasoning platform
           </h2>
           <p className="mt-4 text-balance text-base leading-relaxed text-muted-foreground">
-            Synthegy runs on a five-tier stack spanning four free public databases.
-            Three Bun/Hono microservices back the platform: the LLM Strategic Evaluator
-            (port 3001), a PubChem + ChEMBL molecule service (port 3002), and an
-            experimental-data service (port 3003) that wraps the Open Reaction Database
-            (100K+ real reactions), computed ADMET descriptors via RDKit, and Europe PMC
-            literature mining (40M+ citations).
+            Synthegy now spans six tiers backed by eight free public databases.
+            Four Bun/Hono microservices power the platform: the LLM Strategic Evaluator
+            with active-learning feedback loop (port 3001), a PubChem + ChEMBL molecule
+            service (port 3002), an experimental-data service wrapping ORD + RDKit ADMET
+            + Europe PMC (port 3003), and a biological-intelligence service connecting
+            RCSB PDB structures, KEGG pathways, OpenTargets diseases, and Google Patents
+            (port 3004).
           </p>
         </div>
 
-        <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           {/* Frontend tier */}
           <TierCard
             tier="01"
@@ -138,6 +149,20 @@ export function Architecture() {
             icon={FlaskRound}
             accent="accent"
             features={ORD_FEATURES.map((f) => ({
+              label: f.label,
+              note: f.note,
+              icon: f.icon,
+            }))}
+          />
+
+          {/* Biological intelligence tier */}
+          <TierCard
+            tier="06"
+            title="Biological"
+            subtitle="Bun + Hono · port 3004"
+            icon={Microscope}
+            accent="chart3"
+            features={BIO_FEATURES.map((f) => ({
               label: f.label,
               note: f.note,
               icon: f.icon,

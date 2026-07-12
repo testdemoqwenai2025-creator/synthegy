@@ -268,4 +268,15 @@ export const api = {
       `/api/collections/${collectionId}/items/${cid}`,
       { method: "DELETE" }
     ),
+
+  // Feedback (active learning loop)
+  recordFeedback: (runId: string, signal: "accept" | "revise" | "reject", chemistId?: string, note?: string) =>
+    apiFetch<{ ok: boolean; id: string; runId: string; signal: string; recordedAt: number }>(
+      "/api/feedback",
+      { method: "POST", body: JSON.stringify({ runId, signal, chemistId, note }) }
+    ),
+  feedbackStats: () =>
+    apiFetch<{ totalFeedback: number; bySignal: Record<string, number>; agreementRate: number; correlation: Array<{ chemistSignal: string; evaluatorVerdict: string; count: number; avgScore: number }> }>("/api/feedback/stats"),
+  feedbackProfile: () =>
+    apiFetch<{ totalFeedback: number; accepted: number; revised: number; rejected: number; avgAcceptedScore: number; avgRevisedScore: number; acceptedKeywords: string[]; revisedKeywords: string[]; insights: string[]; profile: string }>("/api/feedback/profile"),
 };
