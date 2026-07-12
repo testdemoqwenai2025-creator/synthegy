@@ -27,6 +27,8 @@ import { SessionHistory } from "./session-history";
 import { MoleculeExplorer } from "./molecule-explorer";
 import { AdvancedSearch } from "./advanced-search";
 import { CollectionsPanel } from "./collections-panel";
+import { ReactionExplorer } from "./reaction-explorer";
+import { CompoundIntelligence } from "./compound-intelligence";
 import type { MoleculeRecord } from "@/lib/synthegy/molecule-api";
 import type { CollectionItemInput } from "@/lib/synthegy/api";
 
@@ -107,6 +109,13 @@ export function Demo() {
                 currentResults={currentSearchResults}
                 refreshKey={collectionsRefreshKey}
               />
+              <ReactionExplorer />
+              {enrichedMolecule && (
+                <CompoundIntelligence
+                  smiles={enrichedMolecule.record.properties.canonicalSMILES}
+                  name={enrichedMolecule.record.properties.iupacName ?? enrichedMolecule.name}
+                />
+              )}
               <LiveEvaluator
                 onRunPersisted={() => setHistoryRefreshKey((k) => k + 1)}
                 enrichedMolecule={enrichedMolecule}

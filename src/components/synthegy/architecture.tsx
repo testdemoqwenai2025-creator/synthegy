@@ -12,6 +12,8 @@ import {
   Lock,
   Atom,
   Activity,
+  FlaskRound,
+  BookOpen,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +46,13 @@ const MOLECULE_FEATURES = [
   { icon: Activity, label: "ChEMBL REST API", note: "2.4M bioactive · mechanisms + IC50/Ki" },
 ];
 
+const ORD_FEATURES = [
+  { icon: Server, label: "Bun + Hono + Python", note: "port 3003" },
+  { icon: Database, label: "SQLite cache", note: "30-day TTL on reactions + ADMET" },
+  { icon: FlaskRound, label: "Open Reaction Database", note: "550+ datasets, 100K+ real reactions" },
+  { icon: BookOpen, label: "Europe PMC", note: "40M+ biomedical citations · literature confidence" },
+];
+
 export function Architecture() {
   return (
     <section
@@ -53,22 +62,22 @@ export function Architecture() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="max-w-3xl">
           <Badge variant="outline" className="border-chart-3/30 bg-chart-3/5 text-chart-3">
-            Four-tier architecture
+            Five-tier architecture
           </Badge>
           <h2 className="mt-4 text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
-            Frontend, middleware, backend — and a molecular intelligence layer
+            Frontend, middleware, backend, molecules — and experimental data
           </h2>
           <p className="mt-4 text-balance text-base leading-relaxed text-muted-foreground">
-            Synthegy isn&apos;t a slide deck. The platform you&apos;re using runs on a real
-            four-tier stack: a Next.js frontend, a Hono API gateway with layered middleware, a
-            SQLite-backed service that hosts the LLM Strategic Evaluator, and a molecule
-            microservice that spans two public databases — PubChem (124M compounds, substructure
-            + property filtering) and ChEMBL (2.4M bioactive molecules with measured IC50/Ki
-            values and mechanisms of action).
+            Synthegy runs on a five-tier stack spanning four free public databases.
+            Three Bun/Hono microservices back the platform: the LLM Strategic Evaluator
+            (port 3001), a PubChem + ChEMBL molecule service (port 3002), and an
+            experimental-data service (port 3003) that wraps the Open Reaction Database
+            (100K+ real reactions), computed ADMET descriptors via RDKit, and Europe PMC
+            literature mining (40M+ citations).
           </p>
         </div>
 
-        <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {/* Frontend tier */}
           <TierCard
             tier="01"
@@ -115,6 +124,20 @@ export function Architecture() {
             icon={Atom}
             accent="primary"
             features={MOLECULE_FEATURES.map((f) => ({
+              label: f.label,
+              note: f.note,
+              icon: f.icon,
+            }))}
+          />
+
+          {/* Experimental data tier */}
+          <TierCard
+            tier="05"
+            title="Experimental"
+            subtitle="Bun + Python · port 3003"
+            icon={FlaskRound}
+            accent="accent"
+            features={ORD_FEATURES.map((f) => ({
               label: f.label,
               note: f.note,
               icon: f.icon,

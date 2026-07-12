@@ -69,3 +69,6 @@ skills/
 .zscripts/
 worklog.md
 examples/
+
+# ORD service DB files
+mini-services/synthegy-ord/synthegy-ord.db*
