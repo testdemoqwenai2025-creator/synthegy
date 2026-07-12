@@ -109,4 +109,21 @@ export const clinicalApi = {
 
   outcomes: (disease?: string) =>
     clinFetch<OutcomeAnalysis>(`/api/clinical/outcomes${disease ? `?disease=${disease}` : ""}`),
+
+  // New endpoints
+  govData: (disease: string) =>
+    clinFetch<{ disease: string; who_data: any[]; fda_adverse_events: any[]; fda_drug_labels: any[]; null_fields: string[]; totalGovRecords: number }>(`/api/clinical/gov-data?disease=${disease}`),
+
+  predictCohort: (disease?: string) =>
+    clinFetch<{ totalPredicted: number; meanRemissionProb: number; highConfidenceCount: number; predictions: any[] }>(`/api/clinical/predict-cohort${disease ? `?disease=${disease}` : ""}`),
+
+  cdiscExport: (disease?: string) =>
+    clinFetch<{ studyId: string; format: string; domains: Record<string, any>; totalRecords: number }>(`/api/clinical/cdisc-export${disease ? `?disease=${disease}` : ""}`),
+
+  compoundMatch: (targets: any[], diseases?: string[]) =>
+    clinFetch<{ totalMatches: number; matches: any[]; diseasesWithMatch: string[] }>(`/api/clinical/compound-match`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ targets, diseases }),
+    }),
 };

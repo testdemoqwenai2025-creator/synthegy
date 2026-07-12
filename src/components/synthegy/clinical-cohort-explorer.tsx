@@ -13,6 +13,7 @@ import {
   ChevronRight,
   RefreshCw,
   Globe,
+  FileText,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -66,6 +67,8 @@ export function ClinicalCohortExplorer() {
   const [analysis, setAnalysis] = React.useState<CohortAnalysis | null>(null);
   const [outcomes, setOutcomes] = React.useState<OutcomeAnalysis | null>(null);
   const [comparison, setComparison] = React.useState<CohortAnalysis[]>([]);
+  const [govData, setGovData] = React.useState<any | null>(null);
+  const [predictions, setPredictions] = React.useState<any | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [view, setView] = React.useState<"single" | "compare">("single");
@@ -74,20 +77,23 @@ export function ClinicalCohortExplorer() {
     setLoading(true);
     setError(null);
     try {
-      // Ensure all cohorts are generated
       for (const dk of Object.keys(DISEASE_LABELS)) {
         await clinicalApi.generate(dk, 50).catch(() => {});
       }
-      const [p, a, o, cmp] = await Promise.all([
+      const [p, a, o, cmp, gd, pred] = await Promise.all([
         clinicalApi.listPatients(selectedDisease),
         clinicalApi.analysis(selectedDisease),
         clinicalApi.outcomes(selectedDisease),
         clinicalApi.compare(),
+        clinicalApi.govData(selectedDisease).catch(() => null),
+        clinicalApi.predictCohort(selectedDisease).catch(() => null),
       ]);
       setPatients(p.patients);
       setAnalysis(a.analysis);
       setOutcomes(o);
       setComparison(cmp.comparisons);
+      setGovData(gd);
+      setPredictions(pred);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load clinical data");
     } finally {
@@ -101,14 +107,18 @@ export function ClinicalCohortExplorer() {
     setSelectedDisease(dk);
     setLoading(true);
     try {
-      const [p, a, o] = await Promise.all([
+      const [p, a, o, gd, pred] = await Promise.all([
         clinicalApi.listPatients(dk),
         clinicalApi.analysis(dk),
         clinicalApi.outcomes(dk),
+        clinicalApi.govData(dk).catch(() => null),
+        clinicalApi.predictCohort(dk).catch(() => null),
       ]);
       setPatients(p.patients);
       setAnalysis(a.analysis);
       setOutcomes(o);
+      setGovData(gd);
+      setPredictions(pred);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load disease");
     } finally {
@@ -129,7 +139,7 @@ export function ClinicalCohortExplorer() {
                 Patient cohort explorer
               </div>
               <div className="text-[11px] text-muted-foreground">
-                300 synthetic patients · 6 diseases · 30-year epidemiological basis · 30 outliers
+                300 synthetic patients · 6 diseases · 50-year span (1975-2025) · real government data (FDA + WHO) · 30 outliers
               </div>
             </div>
           </div>
@@ -341,6 +351,133 @@ export function ClinicalCohortExplorer() {
                 </div>
               </div>
             )}
+
+            {/* === Unified data layers: 30yr synthetic | 50yr synthetic | real govt | Null === */}
+            <div className="rounded-md border border-chart-3/30 bg-chart-3/5 p-3">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-chart-3">
+                Data layers — 30yr synthetic | 50yr synthetic | real government | gaps
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-4">
+                <div className="rounded border border-border/60 bg-background p-2">
+                  <div className="text-[10px] text-muted-foreground">30yr synthetic</div>
+                  <div className="font-semibold text-foreground">{analysis.diagnosisYearRange[1] - analysis.diagnosisYearRange[0] >= 25 ? "✓ 1995-2025" : "Partial"}</div>
+                  <div className="text-[10px] text-muted-foreground">{analysis.totalPatients} patients</div>
+                </div>
+                <div className="rounded border border-border/60 bg-background p-2">
+                  <div className="text-[10px] text-muted-foreground">50yr synthetic</div>
+                  <div className="font-semibold text-foreground">{analysis.diagnosisYearRange[0] <= 1980 ? `✓ ${analysis.diagnosisYearRange[0]}-${analysis.diagnosisYearRange[1]}` : "Partial"}</div>
+                  <div className="text-[10px] text-muted-foreground">{analysis.outliers} outliers</div>
+                </div>
+                <div className="rounded border border-border/60 bg-background p-2">
+                  <div className="text-[10px] text-muted-foreground">Real govt data</div>
+                  <div className="font-semibold text-foreground">{govData ? `${govData.totalGovRecords} records` : "Null"}</div>
+                  <div className="text-[10px] text-muted-foreground">{govData?.fda_adverse_events?.length ?? 0} FDA · {govData?.who_data?.length ?? 0} WHO</div>
+                </div>
+                <div className="rounded border border-border/60 bg-background p-2">
+                  <div className="text-[10px] text-muted-foreground">Data gaps (Null)</div>
+                  <div className="font-semibold text-foreground">{govData?.null_fields?.length ?? "Null"}</div>
+                  <div className="text-[10px] text-muted-foreground">{govData?.null_fields?.[0]?.slice(0, 30) ?? "No gaps"}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* === Government data panel === */}
+            {govData && (
+              <div className="rounded-md border border-border/60 bg-background p-3">
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-primary">
+                  <Activity className="h-3 w-3" />
+                  Real government data — FDA adverse events + WHO + drug labels
+                </div>
+                <div className="mt-2 space-y-2">
+                  {/* FDA adverse events */}
+                  {govData.fda_adverse_events?.filter((ae: any) => ae.totalAdverseEvents !== "Null").length > 0 && (
+                    <div>
+                      <div className="text-[10px] font-semibold uppercase text-muted-foreground">FDA adverse event counts (openFDA)</div>
+                      <div className="mt-1 space-y-1">
+                        {govData.fda_adverse_events?.filter((ae: any) => ae.totalAdverseEvents !== "Null").slice(0, 4).map((ae: any) => (
+                          <div key={ae.drug} className="flex items-center gap-2 rounded border border-border/60 bg-background px-2 py-1 text-[11px]">
+                            <span className="font-medium text-foreground">{ae.drug}</span>
+                            <span className="font-mono tabular-nums text-primary">{ae.totalAdverseEvents.toLocaleString()}</span>
+                            <span className="text-muted-foreground">events</span>
+                            {ae.topReactions?.slice(0, 2).map((r: any, i: number) => (
+                              <Badge key={i} variant="outline" className="text-[9px]">{r.reaction}</Badge>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* WHO data */}
+                  {govData.who_data?.length > 0 ? (
+                    <div>
+                      <div className="text-[10px] font-semibold uppercase text-muted-foreground">WHO Global Health Observatory</div>
+                      <div className="mt-1 space-y-1">
+                        {govData.who_data.slice(0, 3).map((w: any, i: number) => (
+                          <div key={i} className="flex items-center gap-2 rounded border border-border/60 bg-background px-2 py-1 text-[11px]">
+                            <span className="font-mono text-muted-foreground">{w.country}</span>
+                            <span className="text-muted-foreground">{w.year}</span>
+                            <span className="font-medium text-foreground">{w.value} {w.unit}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-[11px] text-muted-foreground italic">WHO: Null — no specific indicators for this disease</div>
+                  )}
+                  {/* Null fields */}
+                  {govData.null_fields?.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {govData.null_fields.map((nf: string, i: number) => (
+                        <Badge key={i} variant="outline" className="border-muted-foreground/30 text-muted-foreground text-[9px]">{nf}</Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* === Outcome prediction panel === */}
+            {predictions && (
+              <div className="rounded-md border border-primary/30 bg-primary/5 p-3">
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-primary">
+                  <TrendingUp className="h-3 w-3" />
+                  Outcome prediction model — remission probability
+                </div>
+                <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
+                  <div className="rounded border border-border/60 bg-background p-2 text-center">
+                    <div className="text-[10px] text-muted-foreground">Mean remission prob</div>
+                    <div className="text-lg font-semibold tabular-nums text-primary">{(predictions.meanRemissionProb * 100).toFixed(0)}%</div>
+                  </div>
+                  <div className="rounded border border-border/60 bg-background p-2 text-center">
+                    <div className="text-[10px] text-muted-foreground">Predicted</div>
+                    <div className="text-lg font-semibold tabular-nums text-foreground">{predictions.totalPredicted}</div>
+                  </div>
+                  <div className="rounded border border-border/60 bg-background p-2 text-center">
+                    <div className="text-[10px] text-muted-foreground">High confidence</div>
+                    <div className="text-lg font-semibold tabular-nums text-foreground">{predictions.highConfidenceCount}</div>
+                  </div>
+                </div>
+                <div className="mt-2 text-[10px] text-muted-foreground">
+                  Model factors: age at onset, sex, smoking status, BMI, treatment intensity (biologic/advanced), diagnosis era, time to first treatment
+                </div>
+              </div>
+            )}
+
+            {/* === CDISC + CSV import pipeline === */}
+            <div className="flex flex-wrap items-center gap-2">
+              <a
+                href={`/api/clinical/cdisc-export?disease=${selectedDisease}&XTransformPort=3005&apiKey=synthegy-demo-key`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-muted/30 px-3 py-1.5 text-[11px] text-foreground transition-colors hover:border-primary/40"
+              >
+                <FileText className="h-3.5 w-3.5" />
+                CDISC SDTM export
+              </a>
+              <span className="text-[10px] text-muted-foreground">
+                Regulatory-ready format (DM + AE + VS domains) · FDA submission standard
+              </span>
+            </div>
           </div>
         )}
       </CardContent>

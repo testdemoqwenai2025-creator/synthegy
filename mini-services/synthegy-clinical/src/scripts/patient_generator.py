@@ -47,6 +47,10 @@ DISEASES = {
             "rf": {"rate": 0.75, "label": "RF"},
         },
         "treatmentEras": [
+            {"years": (1975, 1980), "first_line": ["Aspirin", "Prednisone"], "dmard": ["Gold salts", "D-penicillamine"], "biologic": [], "advanced": []},
+            {"years": (1980, 1985), "first_line": ["Aspirin", "NSAIDs"], "dmard": ["Gold salts", "D-penicillamine", "Sulfasalazine"], "biologic": [], "advanced": []},
+            {"years": (1985, 1990), "first_line": ["NSAIDs", "Prednisone"], "dmard": ["Methotrexate", "Sulfasalazine", "Azathioprine"], "biologic": [], "advanced": []},
+            {"years": (1990, 1995), "first_line": ["NSAIDs", "Prednisone"], "dmard": ["Methotrexate", "Sulfasalazine"], "biologic": [], "advanced": []},
             {"years": (1995, 2000), "first_line": ["NSAIDs", "Prednisone"], "dmard": ["Methotrexate", "Sulfasalazine"], "biologic": [], "advanced": []},
             {"years": (2000, 2005), "first_line": ["NSAIDs", "Prednisone"], "dmard": ["Methotrexate", "Leflunomide"], "biologic": ["Infliximab", "Etanercept"], "advanced": []},
             {"years": (2005, 2010), "first_line": ["NSAIDs"], "dmard": ["Methotrexate", "Leflunomide", "Hydroxychloroquine"], "biologic": ["Adalimumab", "Etanercept", "Infliximab", "Rituximab"], "advanced": []},
@@ -80,6 +84,10 @@ DISEASES = {
             "fhm": {"rate": 0.05, "label": "FHM mutation"},
         },
         "treatmentEras": [
+            {"years": (1975, 1980), "first_line": ["Ergotamine", "Aspirin"], "dmard": ["Propranolol", "Amitriptyline"], "biologic": [], "advanced": []},
+            {"years": (1980, 1985), "first_line": ["Ergotamine", "NSAIDs"], "dmard": ["Propranolol", "Amitriptyline"], "biologic": [], "advanced": []},
+            {"years": (1985, 1990), "first_line": ["Ergotamine", "NSAIDs"], "dmard": ["Propranolol", "Amitriptyline", "Valproate"], "biologic": [], "advanced": []},
+            {"years": (1990, 1995), "first_line": ["Sumatriptan-preview", "Ergotamine", "NSAIDs"], "dmard": ["Propranolol", "Amitriptyline"], "biologic": [], "advanced": []},
             {"years": (1995, 2000), "first_line": ["Sumatriptan", "NSAIDs", "Propranolol"], "dmard": ["Amitriptyline", "Topiramate"], "biologic": [], "advanced": []},
             {"years": (2000, 2005), "first_line": ["Sumatriptan", "Rizatriptan"], "dmard": ["Topiramate", "Valproate"], "biologic": [], "advanced": []},
             {"years": (2005, 2010), "first_line": ["Sumatriptan", "Rizatriptan", "Zolmitriptan"], "dmard": ["Topiramate", "Valproate", "Amitriptyline"], "biologic": [], "advanced": ["OnabotulinumtoxinA"]},
@@ -113,6 +121,10 @@ DISEASES = {
             "msu": {"rate": 0.80, "label": "MSU crystals"},
         },
         "treatmentEras": [
+            {"years": (1975, 1980), "first_line": ["Colchicine", "Aspirin"], "dmard": ["Allopurinol", "Probenecid"], "biologic": [], "advanced": []},
+            {"years": (1980, 1985), "first_line": ["Colchicine", "NSAIDs"], "dmard": ["Allopurinol", "Probenecid"], "biologic": [], "advanced": []},
+            {"years": (1985, 1990), "first_line": ["NSAIDs", "Colchicine"], "dmard": ["Allopurinol"], "biologic": [], "advanced": []},
+            {"years": (1990, 1995), "first_line": ["NSAIDs", "Colchicine", "Prednisone"], "dmard": ["Allopurinol", "Probenecid"], "biologic": [], "advanced": []},
             {"years": (1995, 2000), "first_line": ["NSAIDs", "Colchicine", "Prednisone"], "dmard": ["Allopurinol", "Probenecid"], "biologic": [], "advanced": []},
             {"years": (2000, 2005), "first_line": ["NSAIDs", "Colchicine"], "dmard": ["Allopurinol", "Probenecid"], "biologic": [], "advanced": []},
             {"years": (2005, 2010), "first_line": ["NSAIDs", "Colchicine", "Prednisone"], "dmard": ["Allopurinol", "Febuxostat"], "biologic": [], "advanced": []},
@@ -145,6 +157,10 @@ DISEASES = {
             "ra_factor": {"rate": 0.10, "label": "Elevated CRP"},
         },
         "treatmentEras": [
+            {"years": (1975, 1980), "first_line": ["Aspirin", "Phenylbutazone"], "dmard": ["Intra-articular steroids"], "biologic": [], "advanced": []},
+            {"years": (1980, 1985), "first_line": ["NSAIDs", "Acetaminophen"], "dmard": ["Intra-articular steroids"], "biologic": [], "advanced": []},
+            {"years": (1985, 1990), "first_line": ["NSAIDs", "Acetaminophen"], "dmard": ["Intra-articular steroids"], "biologic": [], "advanced": []},
+            {"years": (1990, 1995), "first_line": ["NSAIDs", "Acetaminophen"], "dmard": ["Intra-articular steroids"], "biologic": [], "advanced": []},
             {"years": (1995, 2000), "first_line": ["NSAIDs", "Acetaminophen"], "dmard": ["Intra-articular steroids"], "biologic": [], "advanced": []},
             {"years": (2000, 2005), "first_line": ["NSAIDs", "Acetaminophen", "Topical NSAIDs"], "dmard": ["Hyaluronic acid"], "biologic": [], "advanced": []},
             {"years": (2005, 2010), "first_line": ["NSAIDs", "Acetaminophen"], "dmard": ["Intra-articular steroids", "Hyaluronic acid"], "biologic": [], "advanced": []},
@@ -178,6 +194,10 @@ DISEASES = {
             "calprotectin": {"rate": 0.85, "label": "Elevated calprotectin"},
         },
         "treatmentEras": [
+            {"years": (1975, 1980), "first_line": ["Sulfasalazine", "Prednisone"], "dmard": ["Azathioprine"], "biologic": [], "advanced": []},
+            {"years": (1980, 1985), "first_line": ["Sulfasalazine", "Prednisone"], "dmard": ["Azathioprine", "6-MP"], "biologic": [], "advanced": []},
+            {"years": (1985, 1990), "first_line": ["Mesalamine", "Prednisone"], "dmard": ["Azathioprine", "6-MP"], "biologic": [], "advanced": []},
+            {"years": (1990, 1995), "first_line": ["Mesalamine", "Prednisone"], "dmard": ["Azathioprine", "6-MP"], "biologic": [], "advanced": []},
             {"years": (1995, 2000), "first_line": ["Mesalamine", "Prednisone"], "dmard": ["Azathioprine", "6-MP"], "biologic": [], "advanced": []},
             {"years": (2000, 2005), "first_line": ["Mesalamine", "Budesonide"], "dmard": ["Azathioprine", "Methotrexate"], "biologic": ["Infliximab"], "advanced": []},
             {"years": (2005, 2010), "first_line": ["Mesalamine"], "dmard": ["Azathioprine", "6-MP"], "biologic": ["Infliximab", "Adalimumab"], "advanced": []},
@@ -211,6 +231,10 @@ DISEASES = {
             "ige": {"rate": 0.60, "label": "Elevated IgE"},
         },
         "treatmentEras": [
+            {"years": (1975, 1980), "first_line": ["Isoproterenol", "Epinephrine", "Theophylline"], "dmard": ["Beclomethasone"], "biologic": [], "advanced": []},
+            {"years": (1980, 1985), "first_line": ["Albuterol", "Theophylline"], "dmard": ["Beclomethasone", "Cromolyn"], "biologic": [], "advanced": []},
+            {"years": (1985, 1990), "first_line": ["Albuterol"], "dmard": ["Beclomethasone", "Theophylline"], "biologic": [], "advanced": []},
+            {"years": (1990, 1995), "first_line": ["Albuterol", "Prednisone"], "dmard": ["Fluticasone", "Theophylline"], "biologic": [], "advanced": []},
             {"years": (1995, 2000), "first_line": ["Albuterol", "Prednisone"], "dmard": ["Fluticasone", "Montelukast"], "biologic": [], "advanced": []},
             {"years": (2000, 2005), "first_line": ["Albuterol", "Salmeterol"], "dmard": ["Budesonide", "Montelukast"], "biologic": [], "advanced": []},
             {"years": (2005, 2010), "first_line": ["Albuterol", "Formoterol"], "dmard": ["Fluticasone", "Mometasone"], "biologic": ["Omalizumab"], "advanced": []},
@@ -257,7 +281,7 @@ def generate_patient(patient_id: int, disease_key: str, is_outlier: bool = False
     else:
         age_at_onset = _gauss(profile["meanAgeOnset"], profile["ageStd"], profile["ageMin"], profile["ageMax"])
 
-    diagnosis_year = random.randint(1995, 2024)
+    diagnosis_year = random.randint(1975, 2024)
     sex = "F" if random.random() < profile["femalePct"] else "M"
     ethnicity = random.choices(["White", "Black", "Asian", "Hispanic", "Other"], weights=[0.60, 0.15, 0.10, 0.10, 0.05])[0]
     bmi = round(random.gauss(27, 5), 1)

@@ -1,7 +1,10 @@
 // Routes for the clinical service — multi-disease support.
 
 import { Hono } from "hono";
-import { generateCohort, analyzeCohort, listDiseases } from "../python-bridge.ts";
+import {
+  generateCohort, analyzeCohort, listDiseases,
+  fetchGovData, predictOutcome, predictCohort, exportCdiscSdtm, compoundDiseaseMatch
+} from "../python-bridge.ts";
 import { storePatient, getAllPatients, getPatientById, patientCount, cacheGet, cacheSet } from "../store.ts";
 
 export const clinical = new Hono();
@@ -152,4 +155,98 @@ clinical.get("/outcomes", (c) => {
     })),
     disclaimer: "ALL DATA IS SYNTHETIC",
   });
+});
+
+// --- Government data endpoint ---
+// GET /api/clinical/gov-data?disease=rheumatoid_arthritis
+clinical.get("/gov-data", async (c) => {
+  const disease = c.req.query("disease") ?? "rheumatoid_arthritis";
+  const cacheKey = `gov:${disease}`;
+  const cached = cacheGet(cacheKey);
+  if (cached) return c.json({ ...cached, cached: true });
+  const result = await fetchGovData(disease).catch((e) => {
+    throw new Error(`Gov data fetch failed: ${e.message}`);
+  });
+  cacheSet(cacheKey, result); // cache for 24h implicitly
+  return c.json({ ...result, cached: false });
+});
+
+// --- Outcome prediction ---
+// POST /api/clinical/predict — body: { patient: {...} }
+clinical.post("/predict", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  if (!body?.patient) return c.json({ error: "validation_error", message: "patient is required" }, 400);
+  const result = await predictOutcome(body.patient).catch((e) => {
+    throw new Error(`Prediction failed: ${e.message}`);
+  });
+  return c.json({ prediction: result, disclaimer: "ALL DATA IS SYNTHETIC" });
+});
+
+// GET /api/clinical/predict-cohort?disease=rheumatoid_arthritis
+clinical.get("/predict-cohort", async (c) => {
+  const diseaseFilter = c.req.query("disease");
+  let patients = getAllPatients();
+  if (diseaseFilter) patients = patients.filter(p => p.diseaseKey === diseaseFilter);
+  if (patients.length === 0) return c.json({ error: "no_data", message: "No patients." }, 404);
+  const result = await predictCohort(patients).catch((e) => {
+    throw new Error(`Prediction failed: ${e.message}`);
+  });
+  return c.json({ ...result, disclaimer: "ALL DATA IS SYNTHETIC" });
+});
+
+// --- CDISC SDTM export ---
+// GET /api/clinical/cdisc-export?disease=rheumatoid_arthritis
+clinical.get("/cdisc-export", async (c) => {
+  const diseaseFilter = c.req.query("disease");
+  let patients = getAllPatients();
+  if (diseaseFilter) patients = patients.filter(p => p.diseaseKey === diseaseFilter);
+  if (patients.length === 0) return c.json({ error: "no_data", message: "No patients." }, 404);
+  const result = await exportCdiscSdtm(patients).catch((e) => {
+    throw new Error(`CDISC export failed: ${e.message}`);
+  });
+  return c.json(result);
+});
+
+// --- Compound-disease matching ---
+// POST /api/clinical/compound-match — body: { targets: [...], diseases: [...] }
+clinical.post("/compound-match", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  if (!body?.targets) return c.json({ error: "validation_error", message: "targets[] is required" }, 400);
+  const diseases = body.diseases ?? ["rheumatoid_arthritis", "migraine", "gout", "osteoarthritis", "ulcerative_colitis", "asthma"];
+  const result = await compoundDiseaseMatch(body.targets, diseases).catch((e) => {
+    throw new Error(`Matching failed: ${e.message}`);
+  });
+  return c.json(result);
+});
+
+// --- CSV import (RWE pipeline) ---
+// POST /api/clinical/import-csv — body: { csv: "patientId,disease,...\n..." }
+clinical.post("/import-csv", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  if (!body?.csv) return c.json({ error: "validation_error", message: "csv string is required" }, 400);
+  // Parse CSV and store patients
+  const lines = body.csv.trim().split("\n");
+  if (lines.length < 2) return c.json({ error: "validation_error", message: "CSV must have a header + at least 1 row" }, 400);
+  const headers = lines[0].split(",").map(h => h.trim());
+  let imported = 0;
+  for (let i = 1; i < lines.length; i++) {
+    const values = lines[i].split(",").map(v => v.trim());
+    const patient: any = { synthetic: false, biomarkers: {}, treatments: [], adverseEvents: [], outcomeAt24Months: {}, isOutlier: false };
+    headers.forEach((h, idx) => {
+      const v = values[idx] ?? "";
+      if (h === "patientId") patient.patientId = v;
+      else if (h === "disease") patient.disease = v;
+      else if (h === "diagnosisYear") patient.diagnosisYear = Number(v) || 0;
+      else if (h === "ageAtOnset") patient.ageAtOnset = Number(v) || 0;
+      else if (h === "sex") patient.sex = v;
+      else if (h === "bmi") patient.bmi = Number(v) || 0;
+      else if (h === "smoker") patient.smoker = v === "true" || v === "1";
+      else if (h === "outcome24m") patient.outcomeAt24Months.status = v;
+    });
+    if (patient.patientId) {
+      storePatient(patient);
+      imported++;
+    }
+  }
+  return c.json({ ok: true, imported, disclaimer: "Imported data is marked as non-synthetic" });
 });
